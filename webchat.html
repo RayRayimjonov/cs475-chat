@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS 475 Chat</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --border: #dfe3e8; --text: #1d2330; --muted: #6b7380;
+    --accent: #2f6fde; --accent-text: #ffffff; --me: #1f8a4c; --other: #2f6fde;
+    --private-bg: #f6eefc; --private: #8a3fc0; --notice: #8a6d1f; --error: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1c2027; --border: #2c323c; --text: #e4e7ec; --muted: #8b93a1;
+      --accent: #5b8ff0; --accent-text: #0e1116; --me: #4cc483; --other: #6ea2ff;
+      --private-bg: #2a2133; --private: #c99bf0; --notice: #d8b75a; --error: #f07167;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  button, input { font: inherit; color: inherit; }
+  button {
+    background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px;
+    padding: 9px 16px; cursor: pointer; font-weight: 600;
+  }
+  button:disabled { opacity: .6; cursor: default; }
+  input {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 12px; min-width: 0;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  /* login */
+  #login { height: 100%; display: grid; place-items: center; padding: 16px; }
+  #login form {
+    width: 100%; max-width: 360px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px 24px; display: grid; gap: 14px;
+  }
+  #login h1 { margin: 0; font-size: 22px; }
+  #login p { margin: 0; color: var(--muted); font-size: 14px; }
+  #login-error { color: var(--error); min-height: 1.4em; font-size: 14px; }
+
+  /* chat */
+  #chat { height: 100%; display: none; grid-template-columns: 220px 1fr; }
+  #chat.on { display: grid; }
+  aside {
+    background: var(--panel); border-right: 1px solid var(--border); padding: 16px;
+    overflow-y: auto; display: flex; flex-direction: column; gap: 18px;
+  }
+  aside h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    margin: 0 0 6px;
+  }
+  aside ul { list-style: none; margin: 0; padding: 0; }
+  aside li button {
+    width: 100%; text-align: left; background: none; color: var(--text); font-weight: 400;
+    padding: 5px 8px; border-radius: 6px; display: flex; justify-content: space-between; gap: 8px;
+  }
+  aside li button:hover { background: var(--bg); }
+  aside li button.current { background: var(--bg); font-weight: 600; }
+  aside .count { color: var(--muted); font-size: 13px; }
+  #new-room { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  #new-room input { flex: 1 1 100%; padding: 6px 8px; }
+  #new-room select {
+    flex: 1; padding: 6px 4px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 13px;
+  }
+  #new-room button { padding: 6px 10px; }
+  /* "Join #room" offered inside an invitation line. */
+  button.inline {
+    padding: 2px 8px; font: inherit; font-size: 13px; border-radius: 6px;
+    border: 1px solid var(--border); background: none; color: var(--accent); cursor: pointer;
+  }
+  main { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; min-width: 0; }
+  header {
+    padding: 12px 18px; border-bottom: 1px solid var(--border); background: var(--panel);
+    display: flex; align-items: center; gap: 12px;
+  }
+  /* A room name can be long now, so the title shrinks and ellipsises rather than
+     pushing the Invite / Delete / Leave buttons off the edge. */
+  header h1 {
+    margin: 0; font-size: 18px; flex: 1 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  header .who {
+    color: var(--muted); font-size: 14px; flex: 0 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  header button { flex: none; }
+  header button { padding: 6px 12px; background: none; color: var(--muted); border: 1px solid var(--border); }
+  #log { overflow-y: auto; padding: 14px 18px; }
+  .conv { display: flex; flex-direction: column; gap: 3px; }
+  /* Needed: this display rule would otherwise beat the browser's own [hidden] { display: none }. */
+  .conv[hidden] { display: none; }
+  .badge { background: var(--accent); color: var(--accent-text); border-radius: 999px;
+           padding: 0 7px; font-size: 12px; font-weight: 700; }
+  .line { word-wrap: break-word; overflow-wrap: anywhere; }
+  .line time { color: var(--muted); font-size: 12px; margin-right: 8px; font-variant-numeric: tabular-nums; }
+  .line .nick { font-weight: 700; color: var(--other); margin-right: 6px; }
+  .line.mine .nick { color: var(--me); }
+  .line.history { opacity: .6; }
+  .line.private { background: var(--private-bg); color: var(--private); padding: 4px 8px; border-radius: 6px; }
+  .line.private .nick { color: var(--private); }
+  .line.notice { color: var(--notice); font-size: 14px; }
+  .line.error { color: var(--error); font-size: 14px; }
+  .divider { color: var(--muted); font-size: 12px; text-align: center; margin: 6px 0; }
+  #compose { display: flex; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--panel); }
+  #compose input { flex: 1; }
+
+  @media (max-width: 700px) {
+    #chat.on { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--border); flex-direction: row;
+            gap: 16px; padding: 10px 16px; max-height: 140px; }
+    aside section { flex: 1; min-width: 0; }
+    header, #log, #compose { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <form id="login-form">
+    <h1>CS 475 Chat</h1>
+    <p>Pick a nickname: 1–16 letters, digits, <code>_</code> or <code>-</code>.</p>
+    <input id="nick" autocomplete="off" maxlength="16" placeholder="Nickname" required>
+    <button id="join-btn">Join</button>
+    <div id="login-error" role="alert"></div>
+  </form>
+</div>
+
+<div id="chat">
+  <aside>
+    <section>
+      <h2>Rooms</h2>
+      <ul id="rooms"></ul>
+      <form id="new-room">
+        <input id="new-room-name" placeholder="new room" maxlength="48">
+        <select id="new-room-kind" title="Who can see and join this room">
+          <option value="private">private</option>
+          <option value="public">public</option>
+        </select>
+        <button>Go</button>
+      </form>
+    </section>
+    <section id="dms-section" hidden>
+      <h2>Private chats</h2>
+      <ul id="dms"></ul>
+    </section>
+    <section>
+      <h2>In this room</h2>
+      <ul id="users"></ul>
+    </section>
+  </aside>
+  <main>
+    <header>
+      <h1 id="room-title">#lobby</h1>
+      <span class="who" id="me"></span>
+      <button id="invite-btn" hidden>Invite</button>
+      <button id="delete-btn" hidden>Delete room</button>
+      <button id="leave">Leave</button>
+    </header>
+    <div id="log" aria-live="polite"></div>
+    <form id="compose">
+      <input id="text" autocomplete="off" placeholder="Message, or /msg nick text, /join room, /help">
+      <button>Send</button>
+    </form>
+  </main>
+</div>
+
+<script>
+// Speaks the chat protocol from PROTOCOL.md. webchat.py relays each line to the TCP server unchanged.
+const $ = (id) => document.getElementById(id);
+let session = null, events = null, registered = false, leaving = false;
+let me = null, myUid = null;
+// You are in exactly one room at a time, private chats included, and the server replays
+// that room's history every time you enter it. So there is one transcript on screen and
+// the server owns it: no per-room caching here, and nothing to leak between rooms.
+let room = null, roomKind = null, roomLabel = "";
+const roomInfo = new Map();  // wire name -> {count, kind, shown, owner}
+let pendingRooms = [];       // ROOM lines collected until ENDROOMS closes the list
+let sendChain = Promise.resolve();
+
+// ---- transport -----------------------------------------------------------
+
+function send(line) {
+  // Chain the requests so lines reach the server in the order they were typed.
+  sendChain = sendChain.then(() =>
+    fetch(`/api/send?s=${session}`, { method: "POST", body: line }).catch(() => {}));
+}
+
+async function connect() {
+  const res = await fetch("/api/open", { method: "POST" });
+  if (!res.ok) throw new Error("The chat server is not reachable.");
+  session = (await res.json()).session;
+  events = new EventSource(`/api/events?s=${session}`);
+  events.onmessage = (e) => handleLine(e.data);
+  events.addEventListener("closed", disconnected);
+  events.onerror = () => { if (events.readyState === EventSource.CLOSED) disconnected(); };
+  await new Promise((resolve) => events.onopen = resolve);
+}
+
+function disconnected() {
+  if (events) events.close();
+  events = null; session = null;
+  if (registered && !leaving) addLine("error", "Disconnected from the server.");
+  registered = false;
+  setTimeout(() => {
+    $("chat").classList.remove("on");
+    $("login").style.display = "";
+    $("join-btn").disabled = false;
+    if (!leaving) $("login-error").textContent = "Disconnected. Join again to reconnect.";
+    leaving = false;
+  }, leaving ? 0 : 1500);
+}
+
+// ---- protocol: server -> client ------------------------------------------
+
+function split(rest, n) {
+  // Split off n leading words; the remainder is free text that may contain spaces.
+  const parts = [];
+  for (let i = 0; i < n; i++) {
+    const sp = rest.indexOf(" ");
+    if (sp < 0) { parts.push(rest); rest = ""; } else { parts.push(rest.slice(0, sp)); rest = rest.slice(sp + 1); }
+  }
+  parts.push(rest);
+  return parts;
+}
+
+function roomTitle(name, kind, shown) {
+  // The server sends the name to display: the other person for a private chat, the
+  // room's own name otherwise. It is free text, so it may hold spaces and punctuation.
+  return kind === "dm" ? `${shown || "private chat"} (private chat)` : (shown || "#" + name);
+}
+
+function handleLine(line) {
+  const [cmd, rest] = split(line, 1);
+  switch (cmd.toUpperCase()) {
+    case "WELCOME": {
+      const [nick, uid] = split(rest, 1);
+      me = nick; myUid = uid.trim();
+      registered = true;
+      $("login").style.display = "none";
+      $("chat").classList.add("on");
+      $("me").textContent = `you are ${me} ${myUid}`;
+      $("me").title = `Your ID is ${myUid}. Others use it to invite you.`;
+      $("text").focus();
+      break;
+    }
+    case "JOINED": {
+      const [name, kind, shown] = split(rest, 2);
+      room = name; roomKind = kind; roomLabel = shown.trim();
+      // The server replays the room's history right after this, so start from a clean
+      // transcript or going back and forth would stack the same lines up again.
+      $("log").replaceChildren();
+      $("room-title").textContent = roomTitle(room, roomKind, roomLabel);
+      $("text").placeholder = roomKind === "dm"
+        ? `Message to ${roomLabel}`
+        : "Message, or /dm nick, /join room, /help";
+      addLine("divider", `— you are now in ${roomTitle(room, roomKind, roomLabel)} —`);
+      renderRoomControls();
+      send("WHO"); send("ROOMS");
+      break;
+    }
+    case "HISTORY": {
+      const [stamp, from, text] = split(rest, 2);
+      addMessage(from, text, { stamp, cls: "history" });
+      break;
+    }
+    case "MSG": {
+      const [from, text] = split(rest, 1);
+      addMessage(from, text, {});
+      break;
+    }
+    case "INVITED": {
+      const [name, from, shown] = split(rest, 2);
+      addInvite(name, from, shown.trim() || "#" + name);
+      send("ROOMS");
+      break;
+    }
+    case "NOTICE": {
+      // PROTOCOL.md: a JOIN for the room you are in answers "You are already in #<room>".
+      // Treat it as the server telling us where we actually are, in case our idea of the
+      // current room had drifted from its own.
+      const already = /^You are already in #(\S+)$/.exec(rest);
+      if (already) { room = already[1]; $("room-title").textContent = roomTitle(room, roomKind, roomLabel); }
+      addLine("notice", rest);
+      if (registered && rest !== "Goodbye") { send("WHO"); send("ROOMS"); }
+      break;
+    }
+    case "USERS": {
+      const [r, pairs] = split(rest, 1);
+      renderUsers(pairs ? pairs.split(" ").map((t) => t.split("=")) : []);
+      break;
+    }
+    case "ROOM":
+      // "<name> <count> <kind> <owner> <shown...>" — the displayed name is last
+      // because it is free text. Collected until ENDROOMS swaps the list in at once.
+      pendingRooms.push(split(rest, 4));
+      break;
+    case "ENDROOMS":
+      renderRooms(pendingRooms);
+      pendingRooms = [];
+      break;
+    case "ERROR": {
+      const [code, reason] = split(rest, 1);
+      if (!registered) { $("login-error").textContent = reason; $("join-btn").disabled = false; }
+      else addLine("error", `Error ${code}: ${reason}`);
+      break;
+    }
+    default:
+      addLine("error", `Unrecognized message: ${line}`);
+  }
+}
+
+// ---- rendering -------------------------------------------------------------
+
+function now() {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function append(div) {
+  const log = $("log");
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  log.appendChild(div);
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+
+function addMessage(from, text, { stamp, cls }) {
+  const div = document.createElement("div");
+  div.className = "line" + (cls ? " " + cls : "") + (from === me ? " mine" : "");
+  const t = document.createElement("time"); t.textContent = stamp || now();
+  const n = document.createElement("span"); n.className = "nick"; n.textContent = from;
+  div.append(t, n, document.createTextNode(text));
+  append(div);
+}
+
+function addLine(cls, text) {
+  const div = document.createElement("div");
+  div.className = "line " + cls;
+  div.textContent = text;
+  append(div);
+}
+
+function addInvite(name, from, shown) {
+  const div = document.createElement("div");
+  div.className = "line notice";
+  div.append(document.createTextNode(`${from} invited you to ${shown}. `));
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "inline";
+  b.textContent = `Join ${shown}`;
+  b.onclick = () => send(`JOIN ${name}`);
+  div.append(b);
+  append(div);
+}
+
+function renderRoomControls() {
+  // Only a room's owner may invite people to it or delete it, so only its owner is
+  // offered the buttons.
+  const info = roomInfo.get(room);
+  const mine = !!info && info.owner === me;
+  $("delete-btn").hidden = !mine;
+  $("invite-btn").hidden = !(mine && info.kind === "private");
+}
+
+function renderRooms(rows) {
+  roomInfo.clear();
+  for (const [name, count, kind, owner, shown] of rows) {
+    roomInfo.set(name, { count, kind, shown: shown || "#" + name,
+                         owner: owner === "-" ? "" : owner });
+  }
+  const entry = (name, text, title) => {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.type = "button";
+    if (name === room) b.className = "current";
+    if (title) b.title = title;
+    const label = document.createElement("span"); label.textContent = text;
+    const c = document.createElement("span"); c.className = "count";
+    c.textContent = roomInfo.get(name).count;
+    b.append(label, c);
+    b.onclick = () => gotoRoom(name);
+    li.append(b); return li;
+  };
+
+  const rooms = [...roomInfo.entries()].filter(([, i]) => i.kind !== "dm");
+  $("rooms").replaceChildren(...rooms.map(([name, i]) =>
+    entry(name, (i.kind === "private" ? "🔒 " : "") + i.shown,
+          i.kind === "private"
+            ? `Private room${i.owner ? ", owned by " + i.owner : ""}`
+            : "Public room, anyone can join")));
+
+  const dms = [...roomInfo.entries()].filter(([, i]) => i.kind === "dm");
+  $("dms-section").hidden = dms.length === 0;
+  $("dms").replaceChildren(...dms.map(([name, i]) =>
+    entry(name, i.shown || "private chat", "Private chat")));
+
+  renderRoomControls();
+}
+
+function renderUsers(pairs) {
+  $("users").replaceChildren(...pairs.map(([nick, uid]) => {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.type = "button";
+    const name = document.createElement("span");
+    name.textContent = nick + (nick === me ? " (you)" : "");
+    const id = document.createElement("span");
+    id.className = "count"; id.textContent = uid || "";
+    b.append(name, id);
+    b.title = nick === me ? `Your ID is ${uid}` : `Open a private chat with ${nick} (${uid})`;
+    b.onclick = () => { if (nick !== me) send(`DM ${uid || nick}`); };
+    li.append(b); return li;
+  }));
+}
+
+// ---- user input -> protocol ----------------------------------------------
+
+const HELP = "Commands: /dm <nick|@id>, /join <room>, /new <room> [public], " +
+  "/invite <nick|@id> [room], /delete [room], /who, /rooms, /quit. " +
+  "Anything else goes to everyone in your current room.";
+
+// A room may be named by its wire name or by the name on screen, which can hold
+// spaces and punctuation. The server resolves either, so the client sends what was
+// typed rather than trying to validate it here.
+function gotoRoom(nameOrShown) {
+  const text = nameOrShown.trim();
+  if (!text) return;
+  // Asking for the room you are already in is not a join: there is nothing to do.
+  const here = roomInfo.get(room);
+  if (text === room || (here && text.toLowerCase() === here.shown.toLowerCase())) return;
+  send(`JOIN ${text}`);
+}
+
+function handleInput(text) {
+  if (!text.startsWith("/")) { send(`MSG ${text}`); return; }
+  const [cmd, rest] = split(text, 1);
+  const arg = rest.trim();
+  switch (cmd.toLowerCase()) {
+    case "/dm":
+      if (!arg) addLine("error", "Usage: /dm <nick|@id>"); else send(`DM ${arg}`);
+      return;
+    case "/join":
+      if (!arg) addLine("error", "Usage: /join <room>"); else gotoRoom(arg);
+      return;
+    case "/new": {
+      const [first, tail] = split(arg, 1);
+      const explicit = ["public", "private"].includes(first.toLowerCase()) && tail.trim();
+      if (!arg) { addLine("error", "Usage: /new [public|private] <name>"); return; }
+      createRoom(explicit ? tail.trim() : arg, explicit ? first.toLowerCase() : "private");
+      return;
+    }
+    case "/invite": {
+      const [who, where] = split(arg, 1);
+      if (!who) { addLine("error", "Usage: /invite <nick|@id> [room]"); return; }
+      send(`INVITE ${who} ${where.trim() || room}`);
+      return;
+    }
+    case "/delete":
+      deleteRoom(arg || room);
+      return;
+    case "/who": send("WHO"); return;
+    case "/rooms": send("ROOMS"); return;
+    case "/quit": leave(); return;
+    case "/help": addLine("notice", HELP); return;
+    default: addLine("error", `Unknown command ${cmd}. ${HELP}`);
+  }
+}
+
+function createRoom(name, kind) {
+  const title = name.trim();
+  if (!title) { addLine("error", "A room needs a name."); return; }
+  // The kind goes first so the name can run to the end of the line, where spaces and
+  // punctuation need no quoting.
+  send(`CREATE ${kind} ${title}`);
+}
+
+function deleteRoom(nameOrShown) {
+  const text = (nameOrShown || "").trim();
+  if (!text) { addLine("error", "Usage: /delete <room>"); return; }
+  const info = roomInfo.get(text);
+  const what = info ? info.shown : text;
+  if (!confirm(`Delete ${what} and its whole history? This cannot be undone.`)) return;
+  send(`DELROOM ${text}`);
+}
+
+function leave() {
+  leaving = true;
+  send("QUIT");
+}
+
+$("login-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const nick = $("nick").value.trim();
+  $("login-error").textContent = "";
+  $("join-btn").disabled = true;
+  try {
+    if (!session) await connect();
+    send(`HELLO ${nick}`);
+  } catch (err) {
+    $("login-error").textContent = err.message;
+    $("join-btn").disabled = false;
+  }
+};
+
+$("compose").onsubmit = (e) => {
+  e.preventDefault();
+  const text = $("text").value;
+  if (!text.trim()) return;
+  $("text").value = "";
+  handleInput(text);
+};
+
+$("new-room").onsubmit = (e) => {
+  e.preventDefault();
+  const name = $("new-room-name").value.trim();
+  if (name) createRoom(name, $("new-room-kind").value);
+  $("new-room-name").value = "";
+};
+
+$("invite-btn").onclick = () => {
+  const here = roomInfo.get(room);
+  const who = prompt(`Invite someone to ${here ? here.shown : room}. `
+                     + `Type their nickname or their ID (like @4f2a91):`);
+  if (who && who.trim()) send(`INVITE ${who.trim()} ${room}`);
+};
+
+$("delete-btn").onclick = () => deleteRoom(room);
+
+$("leave").onclick = leave;
+
+// Closing the tab: say QUIT so others see "left the chat" instead of waiting for a timeout.
+window.addEventListener("pagehide", () => {
+  if (session && registered) navigator.sendBeacon(`/api/send?s=${session}`, "QUIT");
+});
+</script>
+</body>
+</html>
