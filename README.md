@@ -4,7 +4,13 @@ A multi-user chat system with a protocol we designed ourselves. It has a TCP ser
 
 Team: Rakhmatillo Rayimjonov (server), Aden John (client), Alexis Paulin (concurrency, testing, demo).
 
-**Features:** several users at once, nicknames, broadcast and private messages, clean join/leave, and detection of crashed clients. Stretch goals: **chat rooms**, **message history for late joiners**, and a **web front end**.
+**Features:** several users at once, nicknames, broadcast and private messages, clean join/leave, and detection of crashed clients. Stretch goals: **chat rooms**, **message history for late joiners**, **delivery receipts**, and a **web front end**.
+
+In the browser you can also set a **profile picture** (🙂 in the header) and pick a
+**chat background** (🎨). The background is yours alone and is remembered by your
+browser. Profile pictures are held by `webchat.py`, not by the chat protocol, so they
+are shared between browser users and disappear when the gateway restarts; terminal
+clients are unaffected by either.
 
 ## Files
 

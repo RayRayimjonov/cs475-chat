@@ -6,27 +6,35 @@
 <title>CS 475 Chat</title>
 <style>
   :root {
-    --bg: #f6f7f9; --panel: #ffffff; --border: #dfe3e8; --text: #1d2330; --muted: #6b7380;
-    --accent: #2f6fde; --accent-text: #ffffff; --me: #1f8a4c; --other: #2f6fde;
-    --private-bg: #f6eefc; --private: #8a3fc0; --notice: #8a6d1f; --error: #c0392b;
+    --list-bg: #ffffff; --panel: #ffffff; --border: #e4e8eb; --text: #000000; --muted: #707579;
+    --accent: #3390ec; --accent-text: #ffffff;
+    --chat-bg: #d9e4d0; --pattern: rgba(255,255,255,.45);
+    --bubble-in: #ffffff; --bubble-out: #effdde; --bubble-shadow: rgba(16,35,47,.12);
+    --service-bg: rgba(0,0,0,.22); --service-text: #ffffff;
+    --hover: #f4f4f5; --active: #3390ec; --active-text: #ffffff;
+    --error: #e53935; --notice-ink: #ffffff; --tick: #4fae4e;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #14171c; --panel: #1c2027; --border: #2c323c; --text: #e4e7ec; --muted: #8b93a1;
-      --accent: #5b8ff0; --accent-text: #0e1116; --me: #4cc483; --other: #6ea2ff;
-      --private-bg: #2a2133; --private: #c99bf0; --notice: #d8b75a; --error: #f07167;
+      --list-bg: #17212b; --panel: #17212b; --border: #101921; --text: #ffffff; --muted: #8b9398;
+      --accent: #5288c1; --accent-text: #ffffff;
+      --chat-bg: #0e1621; --pattern: rgba(255,255,255,.04);
+      --bubble-in: #182533; --bubble-out: #2b5278; --bubble-shadow: rgba(0,0,0,.35);
+      --service-bg: rgba(0,0,0,.45); --service-text: #ffffff;
+      --hover: #202b36; --active: #2b5278; --active-text: #ffffff;
+      --error: #ef5350; --notice-ink: #ffffff; --tick: #7fd3ff;
     }
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    background: var(--bg); color: var(--text);
-    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--list-bg); color: var(--text);
+    font: 14px/1.4 -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
   }
-  button, input { font: inherit; color: inherit; }
+  button, input, select { font: inherit; color: inherit; }
   button {
     background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px;
-    padding: 9px 16px; cursor: pointer; font-weight: 600;
+    padding: 9px 16px; cursor: pointer; font-weight: 500;
   }
   button:disabled { opacity: .6; cursor: default; }
   input {
@@ -36,7 +44,7 @@
   input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
   /* login */
-  #login { height: 100%; display: grid; place-items: center; padding: 16px; }
+  #login { height: 100%; display: grid; place-items: center; padding: 16px; background: var(--list-bg); }
   #login form {
     width: 100%; max-width: 360px; background: var(--panel); border: 1px solid var(--border);
     border-radius: 14px; padding: 28px 24px; display: grid; gap: 14px;
@@ -45,79 +53,211 @@
   #login p { margin: 0; color: var(--muted); font-size: 14px; }
   #login-error { color: var(--error); min-height: 1.4em; font-size: 14px; }
 
-  /* chat */
-  #chat { height: 100%; display: none; grid-template-columns: 220px 1fr; }
+  /* shell */
+  #chat { height: 100%; display: none; grid-template-columns: 300px 1fr; }
   #chat.on { display: grid; }
+
+  /* ---- left chat list ---- */
   aside {
-    background: var(--panel); border-right: 1px solid var(--border); padding: 16px;
-    overflow-y: auto; display: flex; flex-direction: column; gap: 18px;
+    background: var(--list-bg); border-right: 1px solid var(--border);
+    overflow-y: auto; display: flex; flex-direction: column; padding: 8px 0 16px;
   }
   aside h2 {
-    font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
-    margin: 0 0 6px;
+    font-size: 13px; font-weight: 500; color: var(--accent);
+    margin: 10px 0 2px; padding: 0 12px;
   }
-  aside ul { list-style: none; margin: 0; padding: 0; }
+  aside ul { list-style: none; margin: 0; padding: 0 6px; }
   aside li button {
     width: 100%; text-align: left; background: none; color: var(--text); font-weight: 400;
-    padding: 5px 8px; border-radius: 6px; display: flex; justify-content: space-between; gap: 8px;
+    padding: 7px 8px; border-radius: 10px; display: flex; align-items: center; gap: 10px;
   }
-  aside li button:hover { background: var(--bg); }
-  aside li button.current { background: var(--bg); font-weight: 600; }
-  aside .count { color: var(--muted); font-size: 13px; }
-  #new-room { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  #new-room input { flex: 1 1 100%; padding: 6px 8px; }
+  aside li button:hover { background: var(--hover); }
+  aside li button.current { background: var(--active); color: var(--active-text); }
+  aside li button.current .count,
+  aside li button.current .sub { color: rgba(255,255,255,.75); }
+  .row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .sub { font-size: 12px; color: var(--muted); overflow: hidden;
+         text-overflow: ellipsis; white-space: nowrap; }
+  aside .count { color: var(--muted); font-size: 12px; flex: none; }
+
+  /* round avatars, in the list and beside incoming messages */
+  .avatar {
+    flex: none; width: 36px; height: 36px; border-radius: 50%; color: #fff;
+    display: grid; place-items: center; font-size: 15px; font-weight: 500;
+    text-transform: uppercase; user-select: none;
+  }
+  .avatar.sm { width: 30px; height: 30px; font-size: 13px; align-self: flex-end; }
+  /* A picture covers the letter underneath it; if it fails to load, the letter shows. */
+  .avatar.has-pic { background-size: cover; background-position: center; color: transparent; }
+  #pic-btn { font-size: 15px; line-height: 1; padding: 6px 10px; }
+
+  #new-room { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 12px 0; }
+  #new-room input { flex: 1 1 100%; padding: 7px 10px; border-radius: 10px; }
   #new-room select {
     flex: 1; padding: 6px 4px; background: var(--panel); color: var(--text);
-    border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 10px; font-size: 13px;
   }
-  #new-room button { padding: 6px 10px; }
-  /* "Join #room" offered inside an invitation line. */
+  #new-room button { padding: 6px 12px; border-radius: 10px; }
+
   button.inline {
-    padding: 2px 8px; font: inherit; font-size: 13px; border-radius: 6px;
-    border: 1px solid var(--border); background: none; color: var(--accent); cursor: pointer;
+    padding: 2px 10px; font-size: 13px; border-radius: 10px; margin-left: 6px;
+    border: 0; background: rgba(255,255,255,.25); color: var(--service-text); cursor: pointer;
   }
+
+  /* ---- conversation ---- */
   main { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; min-width: 0; }
   header {
-    padding: 12px 18px; border-bottom: 1px solid var(--border); background: var(--panel);
-    display: flex; align-items: center; gap: 12px;
+    padding: 8px 18px; border-bottom: 1px solid var(--border); background: var(--panel);
+    display: flex; align-items: center; gap: 12px; min-height: 56px;
   }
-  /* A room name can be long now, so the title shrinks and ellipsises rather than
-     pushing the Invite / Delete / Leave buttons off the edge. */
+  .title-block { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
   header h1 {
-    margin: 0; font-size: 18px; flex: 1 1 auto; min-width: 0;
+    margin: 0; font-size: 16px; font-weight: 500; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  #room-sub {
+    font-size: 13px; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* search over the lists */
+  #search-wrap { padding: 2px 12px 6px; }
+  #search {
+    width: 100%; border-radius: 18px; padding: 8px 14px; font-size: 13px;
+    background: var(--hover); border: 1px solid transparent;
+  }
+  #search:focus { background: var(--panel); border-color: var(--accent); outline: none; }
+  aside li[hidden] { display: none; }
+  .no-match { color: var(--muted); font-size: 13px; padding: 4px 14px; }
   header .who {
-    color: var(--muted); font-size: 14px; flex: 0 1 auto; min-width: 0;
+    color: var(--muted); font-size: 13px; flex: 0 1 auto; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  header button { flex: none; }
-  header button { padding: 6px 12px; background: none; color: var(--muted); border: 1px solid var(--border); }
-  #log { overflow-y: auto; padding: 14px 18px; }
-  .conv { display: flex; flex-direction: column; gap: 3px; }
-  /* Needed: this display rule would otherwise beat the browser's own [hidden] { display: none }. */
-  .conv[hidden] { display: none; }
-  .badge { background: var(--accent); color: var(--accent-text); border-radius: 999px;
-           padding: 0 7px; font-size: 12px; font-weight: 700; }
-  .line { word-wrap: break-word; overflow-wrap: anywhere; }
-  .line time { color: var(--muted); font-size: 12px; margin-right: 8px; font-variant-numeric: tabular-nums; }
-  .line .nick { font-weight: 700; color: var(--other); margin-right: 6px; }
-  .line.mine .nick { color: var(--me); }
-  .line.history { opacity: .6; }
-  .line.private { background: var(--private-bg); color: var(--private); padding: 4px 8px; border-radius: 6px; }
-  .line.private .nick { color: var(--private); }
-  .line.notice { color: var(--notice); font-size: 14px; }
-  .line.error { color: var(--error); font-size: 14px; }
-  .divider { color: var(--muted); font-size: 12px; text-align: center; margin: 6px 0; }
-  #compose { display: flex; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--panel); }
-  #compose input { flex: 1; }
+  header button {
+    flex: none; padding: 6px 12px; background: none; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  }
+  header button:hover { background: var(--hover); }
+
+  /* Wallpaper: a tiled doodle layer over a gradient. Both come from the picker,
+     with a plain fallback so nothing flashes before the script runs. */
+  #log {
+    overflow-y: auto; padding: 16px 18px;
+    background-color: var(--chat-bg);
+    background-image: var(--wp-pattern, none), var(--wp-gradient, none);
+    background-size: 150px 150px, cover;
+    background-repeat: repeat, no-repeat;
+    background-position: center, center;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+
+  /* message rows and bubbles */
+  .row { display: flex; align-items: flex-end; gap: 8px; max-width: 100%; }
+  .row.mine { flex-direction: row-reverse; }
+  .bubble {
+    position: relative; max-width: min(70%, 520px); padding: 6px 10px 6px 12px;
+    background: var(--bubble-in); border-radius: 12px 12px 12px 4px;
+    box-shadow: 0 1px 1px var(--bubble-shadow); word-wrap: break-word;
+    overflow-wrap: anywhere; white-space: pre-wrap;
+  }
+  .row.mine .bubble { background: var(--bubble-out); border-radius: 12px 12px 4px 12px; }
+  .bubble .nick { display: block; font-weight: 500; font-size: 13px; margin-bottom: 1px; }
+  .bubble .body { }
+  .bubble time {
+    float: right; margin: 6px -2px -2px 10px; font-size: 11px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .row.history .bubble { opacity: .78; }
+
+  /* A run of messages from one person: only the first carries a name, only the
+     last carries the tail, and the rest tuck in under a blank avatar column. */
+  .row.grouped { margin-top: -1px; }
+  .row.grouped .avatar { visibility: hidden; }
+  .row.grouped .bubble .nick { display: none; }
+  .bubble { border-radius: 12px; }
+  .row.tail .bubble { border-bottom-left-radius: 4px; }
+  .row.mine.tail .bubble { border-bottom-left-radius: 12px; border-bottom-right-radius: 4px; }
+  .row.tail .bubble::after {
+    content: ""; position: absolute; bottom: 0; left: -7px; width: 0; height: 0;
+    border-style: solid; border-width: 0 0 9px 9px;
+    border-color: transparent transparent var(--bubble-in) transparent;
+  }
+  .row.mine.tail .bubble::after {
+    left: auto; right: -7px; border-width: 0 9px 9px 0;
+    border-color: transparent transparent var(--bubble-out) transparent;
+  }
+
+  /* delivery mark: the server echoed this message back to us */
+  .tick { margin-left: 5px; font-size: 14px; font-weight: 700; color: var(--muted); }
+  .tick.seen { color: var(--tick); }
+  .row.mine .bubble time { margin-left: 8px; }
+
+  /* date separator reads a little stronger than a service notice */
+  .line.date { font-weight: 500; }
+
+  /* wallpaper picker */
+  #bg-btn { font-size: 16px; line-height: 1; padding: 6px 10px; }
+  #bg-picker {
+    position: absolute; right: 16px; top: 58px; z-index: 5; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 14px; padding: 14px;
+    box-shadow: 0 10px 34px var(--bubble-shadow); display: none;
+    grid-template-columns: repeat(3, 82px); gap: 10px;
+    max-height: 70vh; overflow-y: auto;
+  }
+  #bg-picker.on { display: grid; }
+  #bg-picker h3 {
+    grid-column: 1 / -1; margin: 0 0 2px; font-size: 15px; font-weight: 600;
+  }
+  #bg-picker button {
+    width: 82px; height: 116px; padding: 0; border: 0; border-radius: 10px;
+    position: relative; overflow: hidden; cursor: pointer;
+    background-size: 54px 54px, cover;
+    background-repeat: repeat, no-repeat;
+  }
+  #bg-picker button::after {
+    content: "✓"; position: absolute; right: 6px; bottom: 6px;
+    width: 22px; height: 22px; border-radius: 50%; display: none;
+    background: var(--accent); color: #fff; font-size: 13px; font-weight: 700;
+    align-items: center; justify-content: center;
+  }
+  #bg-picker button.current::after { display: flex; }
+  main { position: relative; }
+
+  /* service messages: notices, errors, dividers — centred pills on the wallpaper */
+  .line {
+    align-self: center; max-width: 80%; margin: 6px 0; padding: 4px 12px;
+    background: var(--service-bg); color: var(--service-text); border-radius: 14px;
+    font-size: 13px; text-align: center; word-wrap: break-word; overflow-wrap: anywhere;
+  }
+  .line.error { background: var(--error); }
+
+  /* composer */
+  #compose {
+    display: flex; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--border);
+    background: var(--panel); align-items: center;
+  }
+  #compose input { flex: 1; border-radius: 18px; padding: 10px 16px; }
+  #compose button {
+    flex: none; width: 40px; height: 40px; padding: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0; line-height: 0;
+  }
+  #compose button::before {
+    content: ""; width: 18px; height: 18px; background: currentColor; font-size: 0;
+    clip-path: polygon(0 0, 100% 50%, 0 100%, 18% 50%);
+    /* The glyph's weight sits left of and above its box centre, so nudge it to suit.
+       Tune these two numbers if it still looks off in your browser. */
+    transform: translate(2px, 1px);
+  }
 
   @media (max-width: 700px) {
     #chat.on { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     aside { border-right: 0; border-bottom: 1px solid var(--border); flex-direction: row;
-            gap: 16px; padding: 10px 16px; max-height: 140px; }
-    aside section { flex: 1; min-width: 0; }
-    header, #log, #compose { padding-left: 16px; padding-right: 16px; }
+            gap: 16px; padding: 10px 8px; max-height: 150px; overflow-x: auto; }
+    aside section { flex: 1; min-width: 160px; }
+    header, #log, #compose { padding-left: 12px; padding-right: 12px; }
+    .bubble { max-width: 85%; }
   }
 </style>
 </head>
@@ -135,6 +275,9 @@
 
 <div id="chat">
   <aside>
+    <div id="search-wrap">
+      <input id="search" autocomplete="off" placeholder="Search rooms and people">
+    </div>
     <section>
       <h2>Rooms</h2>
       <ul id="rooms"></ul>
@@ -158,15 +301,22 @@
   </aside>
   <main>
     <header>
-      <h1 id="room-title">#lobby</h1>
+      <div class="title-block">
+        <h1 id="room-title">#lobby</h1>
+        <div id="room-sub"></div>
+      </div>
       <span class="who" id="me"></span>
       <button id="invite-btn" hidden>Invite</button>
       <button id="delete-btn" hidden>Delete room</button>
+      <button id="pic-btn" title="Set your profile picture">🙂</button>
+      <input id="pic-file" type="file" accept="image/*" hidden>
+      <button id="bg-btn" title="Chat background">🎨</button>
       <button id="leave">Leave</button>
     </header>
+    <div id="bg-picker" role="group" aria-label="Chat background"></div>
     <div id="log" aria-live="polite"></div>
     <form id="compose">
-      <input id="text" autocomplete="off" placeholder="Message, or /msg nick text, /join room, /help">
+      <input id="text" autocomplete="off" placeholder="Message, or /dm nick, /join room, /help">
       <button>Send</button>
     </form>
   </main>
@@ -257,6 +407,8 @@ function handleLine(line) {
       // The server replays the room's history right after this, so start from a clean
       // transcript or going back and forth would stack the same lines up again.
       $("log").replaceChildren();
+      datePillShown = false;
+      sent.clear();
       $("room-title").textContent = roomTitle(room, roomKind, roomLabel);
       $("text").placeholder = roomKind === "dm"
         ? `Message to ${roomLabel}`
@@ -272,8 +424,28 @@ function handleLine(line) {
       break;
     }
     case "MSG": {
-      const [from, text] = split(rest, 1);
-      addMessage(from, text, {});
+      const [id, from, text] = split(rest, 2);
+      addMessage(from, text, { id });
+      // Tell the server we have displayed it, so its sender gets a second tick.
+      if (from !== me) send(`SEEN ${id}`);
+      break;
+    }
+    case "RECEIPT": {
+      // "<id> <seen> <total>" — how many of the people who were in the room when we
+      // sent it have displayed it.
+      const [id, seen, total] = split(rest, 2);
+      const row = sent.get(id);
+      if (row) {
+        const tick = row.querySelector(".tick");
+        const all = Number(total) > 0 && Number(seen) >= Number(total);
+        if (tick) {
+          tick.textContent = all ? "✓✓" : "✓";
+          tick.classList.toggle("seen", all);
+          tick.title = Number(total) === 0
+            ? "Delivered to the server; nobody else was in the room"
+            : `Displayed by ${seen} of ${total} ${Number(total) === 1 ? "person" : "people"} in the room`;
+        }
+      }
       break;
     }
     case "INVITED": {
@@ -319,6 +491,50 @@ function handleLine(line) {
 
 // ---- rendering -------------------------------------------------------------
 
+// Telegram-style round avatar: first letter, colour picked from the name so the
+// same person is always the same colour.
+const AVATAR_COLOURS = ["#e17076", "#7bc862", "#e5ca77", "#65aadd",
+                        "#a695e7", "#ee7aae", "#6ec9cb", "#faa774"];
+
+// Nicknames the gateway holds a picture for, and a counter used to bust the browser
+// cache after someone changes theirs.
+let withPictures = new Set();
+let picVersion = 0;
+
+async function refreshPictures() {
+  try {
+    const res = await fetch("/api/avatars");
+    if (!res.ok) return;
+    withPictures = new Set(await res.json());
+    redrawAvatars();
+  } catch (e) { /* the gateway will be asked again on the next room change */ }
+}
+
+function redrawAvatars() {
+  for (const el of document.querySelectorAll(".avatar[data-nick]")) paintAvatar(el);
+}
+
+function paintAvatar(el) {
+  const nick = (el.dataset.nick || "").toLowerCase();
+  const has = withPictures.has(nick);
+  el.classList.toggle("has-pic", has);
+  el.style.backgroundImage = has
+    ? `url("/api/avatar?nick=${encodeURIComponent(nick)}&v=${picVersion}")`
+    : "";
+}
+
+function avatar(name, small) {
+  const el = document.createElement("div");
+  el.className = "avatar" + (small ? " sm" : "");
+  el.dataset.nick = name;
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  el.style.background = AVATAR_COLOURS[hash % AVATAR_COLOURS.length];
+  el.textContent = [...name.replace(/^[#@\s]+/, "")][0] || "?";
+  paintAvatar(el);
+  return el;
+}
+
 function now() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
@@ -330,13 +546,55 @@ function append(div) {
   if (atBottom) log.scrollTop = log.scrollHeight;
 }
 
-function addMessage(from, text, { stamp, cls }) {
-  const div = document.createElement("div");
-  div.className = "line" + (cls ? " " + cls : "") + (from === me ? " mine" : "");
+// A "Today" separator is shown once, when the first message of this visit arrives.
+// History lines carry only a clock time, so we cannot honestly date those.
+let datePillShown = false;
+// our own messages, by id, so a RECEIPT can upgrade the tick on the right bubble
+const sent = new Map();
+
+function addMessage(from, text, { stamp, cls, id }) {
+  const mine = from === me;
+  if (!cls && !datePillShown) { datePillShown = true; addLine("date", "Today"); }
+
+  const row = document.createElement("div");
+  row.className = "row" + (mine ? " mine" : "") + (cls ? " " + cls : "");
+  row.dataset.from = from;
+
+  // Consecutive messages from the same person form one run: the tail moves to the
+  // newest bubble, and this one loses its name and avatar.
+  const prev = $("log").lastElementChild;
+  if (prev && prev.classList.contains("row") && prev.dataset.from === from
+      && prev.classList.contains("mine") === mine) {
+    prev.classList.remove("tail");
+    row.classList.add("grouped");
+  }
+  row.classList.add("tail");
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  if (!mine) {
+    // Your own messages need no name on them; everyone else's carry one, as in Telegram.
+    const n = document.createElement("span");
+    n.className = "nick"; n.textContent = from;
+    n.style.color = avatar(from).style.background;
+    bubble.append(n);
+  }
+  const body = document.createElement("span");
+  body.className = "body"; body.textContent = text;
   const t = document.createElement("time"); t.textContent = stamp || now();
-  const n = document.createElement("span"); n.className = "nick"; n.textContent = from;
-  div.append(t, n, document.createTextNode(text));
-  append(div);
+  bubble.append(body, t);
+  if (mine && !cls) {
+    // The server echoed it back to us, which is the only delivery proof the protocol gives.
+    const tick = document.createElement("span");
+    tick.className = "tick"; tick.textContent = "✓";
+    tick.title = "Sent: waiting for it to be displayed by the room";
+    t.append(tick);
+    if (id) sent.set(id, row);
+  }
+
+  if (!mine) row.append(avatar(from, true));
+  row.append(bubble);
+  append(row);
 }
 
 function addLine(cls, text) {
@@ -374,15 +632,18 @@ function renderRooms(rows) {
     roomInfo.set(name, { count, kind, shown: shown || "#" + name,
                          owner: owner === "-" ? "" : owner });
   }
-  const entry = (name, text, title) => {
+  const entry = (name, text, title, sub) => {
     const li = document.createElement("li"), b = document.createElement("button");
     b.type = "button";
     if (name === room) b.className = "current";
     if (title) b.title = title;
-    const label = document.createElement("span"); label.textContent = text;
+    const wrap = document.createElement("div"); wrap.className = "row-text";
+    const label = document.createElement("div"); label.className = "row-name"; label.textContent = text;
+    wrap.append(label);
+    if (sub) { const s = document.createElement("div"); s.className = "sub"; s.textContent = sub; wrap.append(s); }
     const c = document.createElement("span"); c.className = "count";
     c.textContent = roomInfo.get(name).count;
-    b.append(label, c);
+    b.append(avatar(text), wrap, c);
     b.onclick = () => gotoRoom(name);
     li.append(b); return li;
   };
@@ -392,29 +653,67 @@ function renderRooms(rows) {
     entry(name, (i.kind === "private" ? "🔒 " : "") + i.shown,
           i.kind === "private"
             ? `Private room${i.owner ? ", owned by " + i.owner : ""}`
-            : "Public room, anyone can join")));
+            : "Public room, anyone can join",
+          `${i.count} ${i.count === "1" ? "member" : "members"}`)));
 
   const dms = [...roomInfo.entries()].filter(([, i]) => i.kind === "dm");
   $("dms-section").hidden = dms.length === 0;
   $("dms").replaceChildren(...dms.map(([name, i]) =>
-    entry(name, i.shown || "private chat", "Private chat")));
+    entry(name, i.shown || "private chat", "Private chat", "private chat")));
 
   renderRoomControls();
+  renderSubtitle();
+  applyFilter();
+}
+
+function renderSubtitle(count) {
+  const info = roomInfo.get(room);
+  const kind = (info && info.kind) || roomKind;
+  if (kind === "dm") { $("room-sub").textContent = "private chat"; return; }
+  const n = count === undefined ? (info ? Number(info.count) : 0) : count;
+  $("room-sub").textContent =
+    `${n} ${n === 1 ? "member" : "members"}` + (kind === "private" ? " · private" : "");
 }
 
 function renderUsers(pairs) {
+  renderSubtitle(pairs.length);
+  refreshPictures();
   $("users").replaceChildren(...pairs.map(([nick, uid]) => {
     const li = document.createElement("li"), b = document.createElement("button");
     b.type = "button";
-    const name = document.createElement("span");
+    const wrap = document.createElement("div"); wrap.className = "row-text";
+    const name = document.createElement("div"); name.className = "row-name";
     name.textContent = nick + (nick === me ? " (you)" : "");
-    const id = document.createElement("span");
-    id.className = "count"; id.textContent = uid || "";
-    b.append(name, id);
+    const id = document.createElement("div");
+    id.className = "sub"; id.textContent = uid || "";
+    wrap.append(name, id);
+    b.append(avatar(nick), wrap);
     b.title = nick === me ? `Your ID is ${uid}` : `Open a private chat with ${nick} (${uid})`;
     b.onclick = () => { if (nick !== me) send(`DM ${uid || nick}`); };
     li.append(b); return li;
   }));
+  applyFilter();
+}
+
+// Filtering is applied after every render, because each render rebuilds the lists.
+function applyFilter() {
+  const q = ($("search").value || "").trim().toLowerCase();
+  for (const list of ["rooms", "dms", "users"]) {
+    const ul = $(list);
+    let shown = 0;
+    for (const li of ul.querySelectorAll("li")) {
+      const hit = !q || li.textContent.toLowerCase().includes(q);
+      li.hidden = !hit;
+      if (hit) shown++;
+    }
+    const note = ul.parentElement.querySelector(".no-match");
+    if (note) note.remove();
+    if (q && shown === 0) {
+      const p = document.createElement("div");
+      p.className = "no-match"; p.textContent = "Nothing matches";
+      ul.parentElement.append(p);
+    }
+  }
 }
 
 // ---- user input -> protocol ----------------------------------------------
@@ -529,6 +828,163 @@ $("invite-btn").onclick = () => {
 };
 
 $("delete-btn").onclick = () => deleteRoom(room);
+
+// ---- chat wallpaper --------------------------------------------------------
+// A viewer's own choice, kept in their browser. Nothing is sent anywhere and nobody
+// else sees it, so this needs no protocol support.
+//
+// Each wallpaper is a gradient with a tiled doodle layer drawn over it. The doodles
+// are built here as SVG rather than shipped as image files, which keeps the project
+// to one page with nothing to download.
+
+function tile(paths, opacity) {
+  // Each motif is path data; it has to be wrapped in an element to be drawn at all.
+  const shapes = paths.map((d) => `<path d='${d}'/>`).join("");
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'>`
+    + `<g fill='none' stroke='#ffffff' stroke-opacity='${opacity}' stroke-width='2'`
+    + ` stroke-linecap='round' stroke-linejoin='round'>${shapes}</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+const HEART = "M18 34c-5-7 2-13 7-7 5-6 12 0 7 7l-7 8z";
+const SPARK = "M60 14l3 8 8 3-8 3-3 8-3-8-8-3 8-3z";
+const BUBBLE = "M86 20h24v16H96l-7 8z";
+const CHECK = "M14 72l6 6 11-13";
+const LEAF = "M30 92c10-15 26-15 26-15s0 15-11 19-15-4-15-4z";
+const CUP = "M84 84h16v12a8 8 0 01-16 0z M100 86h5a5 5 0 010 10h-5";
+const DROP = "M56 46c0 6-4 9-9 9s-9-3-9-9 9-16 9-16 9 10 9 16z";
+const WAVE = "M8 58q9-9 18 0t18 0";
+const MOON = "M104 56a11 11 0 11-10-14 9 9 0 0010 14z";
+const FLOWER = "M34 24a5 5 0 110-10 5 5 0 010 10z M44 34a5 5 0 110-10 5 5 0 010 10z"
+             + " M24 34a5 5 0 110-10 5 5 0 010 10z M34 44a5 5 0 110-10 5 5 0 010 10z";
+const STAR = "M96 96l3 7 7 3-7 3-3 7-3-7-7-3 7-3z";
+const RING = "M66 70a12 12 0 110-24 12 12 0 010 24z";
+const CANDY = "M20 20a9 9 0 1118 0 9 9 0 01-18 0z M29 29v16";
+const SNOW = "M30 18v20 M20 24l20 8 M40 24l-20 8";
+
+const MOTIFS = {
+  doodles: [BUBBLE, CHECK, RING, HEART, SPARK, STAR, CUP],
+  nature:  [LEAF, FLOWER, RING, DROP, CHECK, STAR],
+  sweets:  [CANDY, CUP, HEART, SPARK, RING, STAR],
+  dreamy:  [SPARK, HEART, MOON, STAR, RING, FLOWER],
+  ocean:   [WAVE, DROP, RING, BUBBLE, SPARK, CHECK],
+  frost:   [SNOW, SPARK, RING, STAR, DROP],
+};
+
+const WALLPAPERS = [
+  { name: "Doodles", motif: "doodles", alpha: 0.22,
+    gradient: "linear-gradient(160deg, #cfe6a8 0%, #7fbf8f 55%, #5aa882 100%)" },
+  { name: "Meadow", motif: "nature", alpha: 0.24,
+    gradient: "linear-gradient(160deg, #eff3b0 0%, #a9ce7f 60%, #76b17a 100%)" },
+  { name: "Sunset", motif: "sweets", alpha: 0.26,
+    gradient: "linear-gradient(160deg, #ffd3a5 0%, #fb9d7e 55%, #ef7c80 100%)" },
+  { name: "Candy", motif: "dreamy", alpha: 0.26,
+    gradient: "linear-gradient(160deg, #fbc7e4 0%, #d3b5ea 55%, #a9a7e8 100%)" },
+  { name: "Ocean", motif: "ocean", alpha: 0.24,
+    gradient: "linear-gradient(160deg, #bfe6f2 0%, #85bfdd 55%, #6aa4cf 100%)" },
+  { name: "Rainbow", motif: "doodles", alpha: 0.3,
+    gradient: "linear-gradient(135deg, #f9a8d4 0%, #fcd34d 35%, #86efac 70%, #93c5fd 100%)" },
+  { name: "Frost", motif: "frost", alpha: 0.5,
+    gradient: "linear-gradient(160deg, #f3f6f8 0%, #dde5ec 100%)" },
+  { name: "Night", motif: "dreamy", alpha: 0.13,
+    gradient: "linear-gradient(160deg, #27364a 0%, #16202c 55%, #0d141d 100%)" },
+];
+
+const BG_KEY = "cs475-wallpaper";
+
+function layers(paper, patternSize) {
+  return {
+    pattern: tile(MOTIFS[paper.motif], paper.alpha),
+    gradient: paper.gradient,
+    size: `${patternSize}px ${patternSize}px, cover`,
+  };
+}
+
+function applyWallpaper(name) {
+  const paper = WALLPAPERS.find((w) => w.name === name) || WALLPAPERS[0];
+  const l = layers(paper, 150);
+  const root = document.documentElement.style;
+  root.setProperty("--wp-pattern", l.pattern);
+  root.setProperty("--wp-gradient", l.gradient);
+  for (const b of $("bg-picker").querySelectorAll("button")) {
+    b.classList.toggle("current", b.dataset.bg === paper.name);
+  }
+  return paper.name;
+}
+
+function buildPicker() {
+  const title = document.createElement("h3");
+  title.textContent = "Choose a Wallpaper";
+  const tiles = WALLPAPERS.map((paper) => {
+    const b = document.createElement("button");
+    const l = layers(paper, 54);
+    b.type = "button"; b.title = paper.name; b.dataset.bg = paper.name;
+    b.style.backgroundImage = `${l.pattern}, ${paper.gradient}`;
+    b.onclick = () => {
+      applyWallpaper(paper.name);
+      try { localStorage.setItem(BG_KEY, paper.name); } catch (e) { /* private mode */ }
+      $("bg-picker").classList.remove("on");
+    };
+    return b;
+  });
+  $("bg-picker").replaceChildren(title, ...tiles);
+
+  let saved = null;
+  try { saved = localStorage.getItem(BG_KEY); } catch (e) { /* ignore */ }
+  // Older versions stored a colour; anything unrecognised falls back to the default.
+  applyWallpaper(saved);
+}
+
+// ---- profile picture -------------------------------------------------------
+// Shrunk in the browser before it is sent: a 96px square is a few KB, which keeps the
+// upload small and means the gateway never holds anything large.
+const PIC_SIZE = 96;
+
+function shrink(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const side = Math.min(img.width, img.height);   // centre square crop
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = PIC_SIZE;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side,
+                    0, 0, PIC_SIZE, PIC_SIZE);
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("could not read that image")),
+                    "image/jpeg", 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("that file is not an image")); };
+    img.src = url;
+  });
+}
+
+async function uploadPicture(file) {
+  try {
+    const blob = await shrink(file);
+    const res = await fetch(`/api/avatar?s=${session}`, {
+      method: "POST", headers: { "Content-Type": "image/jpeg" }, body: blob,
+    });
+    if (!res.ok) throw new Error(`the gateway refused it (${res.status})`);
+    picVersion++;                 // so browsers fetch the new one rather than the cached one
+    await refreshPictures();
+  } catch (err) {
+    addLine("error", `Could not set your picture: ${err.message}`);
+  }
+}
+
+$("pic-btn").onclick = () => $("pic-file").click();
+$("pic-file").onchange = () => {
+  const file = $("pic-file").files[0];
+  if (file) uploadPicture(file);
+  $("pic-file").value = "";       // so picking the same file again still fires
+};
+
+buildPicker();
+$("bg-btn").onclick = () => $("bg-picker").classList.toggle("on");
+
+$("search").oninput = applyFilter;
 
 $("leave").onclick = leave;
 

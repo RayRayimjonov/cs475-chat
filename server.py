@@ -137,6 +137,11 @@ class Room:
         self.partners = partners      # (uid, uid) for a DM, else None
         self.members = set()          # the Clients currently in the room
         self.history = collections.deque(maxlen=P.HISTORY_SIZE)
+        self.next_id = 1              # message ids, counted within this room
+        # id -> (sender uid, uids that were here when it was sent and have not
+        # acknowledged it yet, how many were expected). An entry is dropped once
+        # everyone has acknowledged, so this only holds messages still in flight.
+        self.pending = {}
 
     def admits(self, uid):
         """A public room takes anyone; a private room or DM only its invitees."""
@@ -283,6 +288,8 @@ class ChatServer:
             self.on_invite(client, rest)
         elif command == "DELROOM":
             self.on_delroom(client, rest)
+        elif command == "SEEN":
+            self.on_seen(client, rest)
         elif command == "WHO":
             self.on_who(client)
         elif command == "ROOMS":
@@ -326,8 +333,56 @@ class ChatServer:
             return
         room = self.rooms[client.room]
         room.history.append((time.strftime("%H:%M"), client.nick, text))
+        msg_id = room.next_id
+        room.next_id += 1
+        # Everyone in the room except the sender is expected to acknowledge it.
+        awaiting = {m.uid for m in room.members if m is not client and m.uid}
+        if awaiting:
+            room.pending[msg_id] = [client.uid, awaiting, len(awaiting)]
+            self.trim_pending(room)
         # Sender included, so it sees its message in the same position as everyone else.
-        self.send_room(room, "MSG", client.nick, text)
+        self.send_room(room, "MSG", msg_id, client.nick, text)
+
+    def trim_pending(self, room):
+        """Messages nobody ever acknowledges would accumulate, so keep only the most
+        recent ones in flight."""
+        while len(room.pending) > P.PENDING_SIZE:
+            del room.pending[next(iter(room.pending))]
+
+    def on_seen(self, client, arg):
+        """A client reporting that it has displayed a message. Unknown ids are ignored:
+        the message may have aged out, or the client may have just changed rooms."""
+        try:
+            msg_id = int(arg.strip())
+        except ValueError:
+            client.send("ERROR", P.ERR_BAD_COMMAND, "Usage: SEEN <id>")
+            return
+        room = self.rooms.get(client.room)
+        if room is None:
+            return
+        self.acknowledge(room, msg_id, client.uid)
+
+    def acknowledge(self, room, msg_id, uid):
+        entry = room.pending.get(msg_id)
+        if entry is None or uid not in entry[1]:
+            return
+        sender_uid, awaiting, expected = entry
+        awaiting.discard(uid)
+        # self.clients is keyed by nickname, so the uid has to go through by_uid first.
+        # A sender who has since gone offline simply has nobody to tell.
+        sender_user = self.by_uid.get(sender_uid)
+        sender = self.clients.get(sender_user.key) if sender_user is not None else None
+        if sender is not None:
+            sender.send("RECEIPT", msg_id, expected - len(awaiting), expected)
+        if not awaiting:
+            del room.pending[msg_id]
+
+    def forget_pending(self, room, uid):
+        """Someone who leaves can no longer acknowledge anything, so stop waiting on
+        them; a message everyone else has already seen becomes complete here."""
+        for msg_id in list(room.pending):
+            if uid in room.pending[msg_id][1]:
+                self.acknowledge(room, msg_id, uid)
 
     def on_join(self, client, arg):
         title = arg.strip()
@@ -534,6 +589,7 @@ class ChatServer:
         old = self.rooms.get(client.room)
         if old is not None:
             old.members.discard(client)
+            self.forget_pending(old, client.uid)
             if announce_leave:
                 # Each reader is told where the room went using the name they know it
                 # by. A private chat is never named: the room it was left for is nobody
@@ -606,6 +662,7 @@ class ChatServer:
                 room = self.rooms.get(client.room)
                 if room is not None:
                     room.members.discard(client)
+                    self.forget_pending(room, client.uid)
                 self.send_all("NOTICE", f"{client.nick} has {reason}")
         client.close()
         self.log(f"{client.label} {reason if registered else 'closed before registering'}")

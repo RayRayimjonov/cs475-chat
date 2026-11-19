@@ -32,6 +32,7 @@ TCP is a byte stream, not a message stream: one `recv()` can return half a line 
 | `DM <nick\|@id>` | Move into your private chat with that person, opening it the first time. | no |
 | `INVITE <nick\|@id> <room>` | Let someone into a private room **you own**. | no |
 | `DELROOM <room>` | Delete a room **you own**, and its history. | no |
+| `SEEN <id>` | Report that the message numbered `<id>` has been displayed here, so its sender can be told it arrived. Sent for other people's messages, never your own. | no |
 
 Wherever a command takes `<room>`, it is the last field, so it accepts either the wire name or the name as shown on screen, spaces and all. Matching ignores case and punctuation, so `study group cs 475` finds `Study Group / CS 475`. Only rooms you are allowed to see are searched, so a private room cannot be found by guessing names.
 | `WHO` | List the users in your current room, with their IDs. | no |
@@ -45,13 +46,36 @@ Wherever a command takes `<room>`, it is the last field, so it accepts either th
 | `WELCOME <nick> <@id>` | Nickname accepted. The client is registered and `<@id>` is its user ID. |
 | `JOINED <room> <kind> <shown>` | You are now in `<room>` (a wire name). `<kind>` is `public`, `private` or `dm`. `<shown>` is free text running to the end of the line: the other person's nickname for a `dm`, the room's name otherwise (`#lobby` when it has no separate name). Followed by that room's history. |
 | `HISTORY <HH:MM> <from> <text>` | A message sent in the room before you arrived (oldest first, at most 20). |
-| `MSG <from> <text>` | A message from `<from>` to your room. |
+| `MSG <id> <from> <text>` | A message from `<from>` to your room. `<id>` numbers it within that room and is what `SEEN` refers to. |
+| `RECEIPT <id> <seen> <total>` | Only to the sender of `<id>`: `<seen>` of the `<total>` people who were in the room when it was sent have displayed it. Sent each time the count rises; not sent at all when `<total>` is 0. |
 | `INVITED <room> <from> <shown>` | `<from>` has let you into the private room `<room>`, whose name on screen is `<shown>`. |
 | `USERS <room> <nick>=<@id> …` | Reply to `WHO`, sorted alphabetically. |
 | `ROOM <name> <count> <kind> <owner> <shown>` | One room you may see, in reply to `ROOMS`. `<owner>` is the creator's nickname, or `-` for `#lobby` and private chats. `<shown>` is the name on screen, free text to the end of the line. |
 | `ENDROOMS` | Closes a run of `ROOM` lines. Clients swap in the new list here, so a listing is never seen half-applied. |
 | `NOTICE <text>` | A human-readable announcement (joins, leaves, goodbye, shutdown). |
 | `ERROR <code> <reason>` | Your last request was rejected. Nothing changed, and the connection stays open. |
+
+### Delivery receipts, and what they do not mean
+
+A `RECEIPT` says that a client **displayed** the line, because that client sent `SEEN`.
+It does not say a person read it, and it cannot: nothing in the protocol observes a
+human.
+
+The people a message waits on are fixed when it is sent: everyone in the room at that
+moment except the sender. Someone who arrives later is never expected to acknowledge
+it, and someone who leaves before acknowledging is dropped from the wait, which can
+complete a message at the moment they go. So `<total>` is the size of the room when
+the message was sent, and `<seen>` can reach it because people left rather than
+because they read anything.
+
+A `SEEN` naming an id the server does not recognise is ignored rather than refused:
+the message may have aged out, or the sender may have changed rooms in between. Only
+the 200 most recent unacknowledged messages per room are tracked, so a message nobody
+ever acknowledges is eventually forgotten and simply never completes.
+
+`client.py` sends `SEEN` but shows nothing for `RECEIPT`, because a terminal cannot
+revise a line it has already printed. The browser client shows one tick for sent and
+two once everyone expected has displayed it.
 
 ## 5. Error codes
 

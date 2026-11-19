@@ -34,6 +34,14 @@ import protocol as P
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webchat.html")
 KEEPALIVE = 10        # seconds between SSE pings, so idle proxies keep the stream open
 ATTACH_TIMEOUT = 20   # seconds a session may wait for the browser to open /api/events
+MAX_AVATAR = 64 * 1024  # bytes; the page shrinks pictures to about 6 KB before sending
+
+# Profile pictures live here rather than in the chat protocol: a picture is far larger
+# than the 1024-byte line limit, and terminal clients have no use for one. They are
+# held in memory for as long as the gateway runs, keyed by lowercased nickname, and
+# shared by every browser connected to this gateway.
+AVATARS = {}                      # nick.lower() -> (content type, bytes)
+AVATAR_LOCK = threading.Lock()
 
 
 class Session:
@@ -41,6 +49,7 @@ class Session:
 
     def __init__(self, sock):
         self.id = secrets.token_urlsafe(16)
+        self.nick = None          # filled in from the server's WELCOME line
         self.sock = sock
         self.lines = queue.Queue()  # lines from the chat server, waiting for the browser
         self.attached = False
@@ -54,6 +63,12 @@ class Session:
                 line = reader.readline()
                 if line is None:
                     break
+                if line.startswith("WELCOME "):
+                    # Remember who this browser is, so an upload can be filed under
+                    # their nickname without the page having to claim one.
+                    parts = line.split(" ")
+                    if len(parts) > 1:
+                        self.nick = parts[1]
                 self.lines.put(line)
         except (OSError, ValueError):
             pass
@@ -122,6 +137,10 @@ class Handler(BaseHTTPRequestHandler):
             self.serve_page()
         elif url.path == "/api/events":
             self.stream_events(self.session_from(url))
+        elif url.path == "/api/avatar":
+            self.serve_avatar(url)
+        elif url.path == "/api/avatars":
+            self.list_avatars()
         else:
             self.reply(404, b"Not found")
 
@@ -131,14 +150,55 @@ class Handler(BaseHTTPRequestHandler):
             self.open_session()
         elif url.path == "/api/send":
             self.send_line(self.session_from(url))
+        elif url.path == "/api/avatar":
+            self.store_avatar(self.session_from(url))
         else:
             self.reply(404, b"Not found")
 
     # ---- endpoints -------------------------------------------------------
 
     def serve_page(self):
+        # The page is read from disk on every request, so editing it and reloading is
+        # enough to see the change. Without this header a browser serves its cached
+        # copy instead, and the edit looks as though it never happened.
         with open(PAGE, "rb") as f:
-            self.reply(200, f.read(), "text/html; charset=utf-8")
+            self.reply(200, f.read(), "text/html; charset=utf-8", no_store=True)
+
+    def serve_avatar(self, url):
+        nick = parse_qs(url.query).get("nick", [""])[0].lower()
+        with AVATAR_LOCK:
+            found = AVATARS.get(nick)
+        if not found:
+            self.reply(404, b"No picture")
+            return
+        content_type, blob = found
+        self.reply(200, blob, content_type)
+
+    def list_avatars(self):
+        """Which nicknames have a picture, so the page only asks for ones that exist."""
+        with AVATAR_LOCK:
+            names = sorted(AVATARS)
+        self.reply(200, json.dumps(names).encode(), "application/json")
+
+    def store_avatar(self, session):
+        if session is None:
+            self.reply(404, b"No such session")
+            return
+        if not session.nick:
+            self.reply(409, b"Register a nickname first")
+            return
+        content_type = self.headers.get("Content-Type", "")
+        if not content_type.startswith("image/"):
+            self.reply(415, b"Not an image")
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > MAX_AVATAR:
+            self.reply(413, b"Picture too large")
+            return
+        blob = self.rfile.read(length)
+        with AVATAR_LOCK:
+            AVATARS[session.nick.lower()] = (content_type.split(";")[0], blob)
+        self.reply(204, b"")
 
     def open_session(self):
         try:
@@ -231,10 +291,12 @@ class Handler(BaseHTTPRequestHandler):
         sid = parse_qs(url.query).get("s", [""])[0]
         return self.server.get_session(sid)
 
-    def reply(self, status, body, content_type="text/plain; charset=utf-8"):
+    def reply(self, status, body, content_type="text/plain; charset=utf-8", no_store=False):
         self.send_response(status)
         if body:
             self.send_header("Content-Type", content_type)
+        if no_store:
+            self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if body:

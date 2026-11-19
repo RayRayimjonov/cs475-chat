@@ -51,7 +51,9 @@ def format_server_line(line, me):
     """Turn one protocol line from the server into something readable."""
     command, rest = P.parse(line)
     if command == "MSG":
-        sender, _, text = rest.partition(" ")
+        # "MSG <id> <from> <text>" — the id is for acknowledgements, not for display.
+        _msg_id, _, tail = rest.partition(" ")
+        sender, _, text = tail.partition(" ")
         style = ("bold", "green") if sender == me else ("bold", "cyan")
         return f"{paint('<' + sender + '>', *style)} {text}"
     if command == "INVITED":
@@ -80,6 +82,10 @@ def format_server_line(line, me):
         listing = ", ".join(describe_rooms(ROOM_LIST)) or "none"
         ROOM_LIST.clear()
         return paint(f"-- Rooms: {listing}", "yellow")
+    if command == "RECEIPT":
+        # A terminal cannot revise a line it has already printed, so receipts are
+        # collected silently; the browser client is the one that shows ticks.
+        return None
     if command == "NOTICE":
         return paint(f"-- {rest}", "yellow")
     if command == "ERROR":
@@ -131,13 +137,30 @@ def register(sock, reader, nick):
         nick = None  # ask again
 
 
-def receive_loop(reader, me, done, quitting):
+def acknowledge(sock, line, me):
+    """Report that someone else's message has been displayed here, so its sender can
+    be shown that it arrived. Our own messages need no acknowledgement."""
+    command, rest = P.parse(line)
+    if command != "MSG":
+        return
+    msg_id, _, tail = rest.partition(" ")
+    sender, _, _ = tail.partition(" ")
+    if sender == me or not msg_id:
+        return
+    try:
+        sock.sendall(P.encode("SEEN", msg_id))
+    except OSError:
+        pass
+
+
+def receive_loop(sock, reader, me, done, quitting):
     """Runs on its own thread: print everything the server sends, until it closes."""
     try:
         while True:
             line = reader.readline()
             if line is None:
                 break
+            acknowledge(sock, line, me)
             text = format_server_line(line, me)
             if text is not None:
                 show(text)
@@ -233,7 +256,7 @@ def main():
 
     done = threading.Event()      # receiver thread has stopped
     quitting = threading.Event()  # we asked to leave, so the close is expected
-    threading.Thread(target=receive_loop, args=(reader, nick, done, quitting),
+    threading.Thread(target=receive_loop, args=(sock, reader, nick, done, quitting),
                      daemon=True).start()
 
     try:

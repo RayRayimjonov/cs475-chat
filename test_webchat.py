@@ -25,9 +25,9 @@ class WebSession:
         assert self.events.status == 200
         assert self.events.getheader("Content-Type").startswith("text/event-stream")
 
-    def request(self, method, path, body=None):
+    def request(self, method, path, body=None, headers=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
-        conn.request(method, path, body=body)
+        conn.request(method, path, body=body, headers=headers or {})
         resp = conn.getresponse()
         data = resp.read()
         conn.close()
@@ -50,8 +50,28 @@ class WebSession:
             elif raw == "":
                 return "(closed)" if event == "closed" else data
 
+    def recv_reply_skipping_receipts(self):
+        """Receipts for our own messages arrive unprompted, so skip past them when a
+        test is waiting for one particular line."""
+        while True:
+            line = self.recv()
+            if not line.startswith("RECEIPT "):
+                return line
+
     def close(self):
         self.stream.close()
+
+
+def strip_msg_id(line):
+    """A MSG line with its id removed: "MSG 7 alice hi" -> "MSG alice hi".
+
+    Most tests are about who receives what, not about the numbering, so they match on
+    the readable part. ReceiptTests covers the ids themselves."""
+    if line is None or not line.startswith("MSG "):
+        return line
+    _cmd, msg_id, rest = line.split(" ", 2)
+    int(msg_id)  # ids are numbers; a malformed one should fail loudly here
+    return "MSG " + rest
 
 
 class GatewayTests(unittest.TestCase):
@@ -95,8 +115,8 @@ class GatewayTests(unittest.TestCase):
         t.recv()  # JOINED
         self.assertEqual(w.recv(), "NOTICE term has joined the chat")
         w.send("MSG hi from the browser 👋")
-        self.assertEqual(t.recv(), "MSG webby hi from the browser 👋")
-        self.assertEqual(w.recv(), "MSG webby hi from the browser 👋")
+        self.assertEqual(strip_msg_id(t.recv()), "MSG webby hi from the browser 👋")
+        self.assertEqual(strip_msg_id(w.recv()), "MSG webby hi from the browser 👋")
         # The terminal opens a private chat with the browser user: it is an ordinary
         # room, so the terminal is moved into it and the lobby is told it left.
         t.send("DM", "webby")
@@ -104,7 +124,7 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(joined.startswith("JOINED dm-"), joined)
         self.assertEqual(joined.split(" ")[2:], [P.KIND_DM, "webby"])
         # The lobby is told term left, but not that it was for a private chat.
-        self.assertEqual(w.recv(), "NOTICE term left #lobby")
+        self.assertEqual(w.recv_reply_skipping_receipts(), "NOTICE term left #lobby")
 
     def test_nick_error_then_retry_same_session(self):
         self.web("taken")
@@ -150,6 +170,41 @@ class GatewayTests(unittest.TestCase):
     def test_line_too_long_rejected(self):
         w = self.web("webby")
         status, _ = w.request("POST", f"/api/send?s={w.id}", b"MSG " + b"x" * 2000)
+        self.assertEqual(status, 413)
+
+    def test_avatar_round_trip(self):
+        """A picture uploaded by one browser is served to every other browser."""
+        w = self.web("picasso")
+        # The gateway stores bytes and checks the declared type and size; it does
+        # not decode the image, so a stand-in is enough here.
+        png = bytes.fromhex("89504e470d0a1a0a") + b"fake image bytes" * 4
+        status, _ = w.request("POST", f"/api/avatar?s={w.id}", png,
+                              headers={"Content-Type": "image/png"})
+        self.assertEqual(status, 204)
+
+        status, body = w.request("GET", "/api/avatars")
+        self.assertEqual(status, 200)
+        self.assertIn("picasso", json.loads(body))
+
+        status, body = w.request("GET", "/api/avatar?nick=PICASSO")  # case-insensitive
+        self.assertEqual(status, 200)
+        self.assertEqual(body, png)
+
+    def test_avatar_missing_is_404(self):
+        w = self.web("nobody")
+        status, _ = w.request("GET", "/api/avatar?nick=ghost")
+        self.assertEqual(status, 404)
+
+    def test_avatar_rejects_non_image(self):
+        w = self.web("sneaky")
+        status, _ = w.request("POST", f"/api/avatar?s={w.id}", b"<html>nope</html>",
+                              headers={"Content-Type": "text/html"})
+        self.assertEqual(status, 415)
+
+    def test_avatar_rejects_oversized(self):
+        w = self.web("hefty")
+        status, _ = w.request("POST", f"/api/avatar?s={w.id}", b"x" * (64 * 1024 + 1),
+                              headers={"Content-Type": "image/png"})
         self.assertEqual(status, 413)
 
     def test_chat_server_down(self):

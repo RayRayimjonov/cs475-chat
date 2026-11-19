@@ -17,6 +17,7 @@ UID_RE = re.compile(r"^@[0-9a-f]{6}$")  # user IDs: "@" is not legal in a nickna
 UID_HEX = 6                             # so an ID can never be mistaken for one
 LOBBY = "lobby"  # every client starts here
 HISTORY_SIZE = 20  # messages replayed to someone entering a room
+PENDING_SIZE = 200  # per room: messages still waiting to be acknowledged (see SEEN)
 
 # Room kinds, reported by ROOMS.
 KIND_PUBLIC = "public"    # listed to everyone, anyone may join

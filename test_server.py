@@ -12,6 +12,18 @@ import protocol as P
 from server import ChatServer
 
 
+def strip_msg_id(line):
+    """A MSG line with its id removed: "MSG 7 alice hi" -> "MSG alice hi".
+
+    Most tests are about who receives what, not about the numbering, so they match on
+    the readable part. ReceiptTests covers the ids themselves."""
+    if line is None or not line.startswith("MSG "):
+        return line
+    _cmd, msg_id, rest = line.split(" ", 2)
+    int(msg_id)  # ids are numbers; a malformed one should fail loudly here
+    return "MSG " + rest
+
+
 class TestClient:
     def __init__(self, port):
         self.sock = socket.create_connection(("127.0.0.1", port), timeout=5)
@@ -31,11 +43,12 @@ class TestClient:
         return self.recv()
 
     def recv_reply(self):
-        """The next line that answers a command, skipping room chatter that may be
-        queued ahead of it (someone else joining or leaving while we were idle)."""
+        """The next line that answers a command, skipping chatter that may be queued
+        ahead of it: someone joining or leaving while we were idle, or a receipt for a
+        message we sent earlier."""
         while True:
             line = self.recv()
-            if line is None or not line.startswith("NOTICE "):
+            if line is None or not line.startswith(("NOTICE ", "RECEIPT ")):
                 return line
 
     def welcome(self, nick):
@@ -142,13 +155,13 @@ class MessagingTests(ServerTestCase):
         b = self.connect("bob")
         a.recv()  # bob has joined
         a.send("MSG", "hello world")
-        self.assertEqual(a.recv(), "MSG alice hello world")
-        self.assertEqual(b.recv(), "MSG alice hello world")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice hello world")
+        self.assertEqual(strip_msg_id(b.recv()), "MSG alice hello world")
 
     def test_spaces_in_text_preserved(self):
         a = self.connect("alice")
         a.send("MSG", "  two  spaces  ")
-        self.assertEqual(a.recv(), "MSG alice   two  spaces  ")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice   two  spaces  ")
 
     def test_private_chat_is_a_room_only_its_two_people_can_enter(self):
         a = self.connect("alice")
@@ -162,7 +175,7 @@ class MessagingTests(ServerTestCase):
         self.assertEqual(joined.split(" ")[2], P.KIND_DM)
         self.assertEqual(joined.split(" ")[3], "bob")  # labelled with the other person
         a.send("MSG", "secret stuff")
-        self.assertEqual(a.recv(), "MSG alice secret stuff")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice secret stuff")
         # Carol is not one of the two people, so the room is closed to her.
         c.send("JOIN", dm_room)
         self.assertTrue(c.recv_reply().startswith(f"ERROR {P.ERR_FORBIDDEN}"))
@@ -171,8 +184,8 @@ class MessagingTests(ServerTestCase):
         a.send("JOIN", P.LOBBY)
         self.assertEqual(a.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} #{P.LOBBY}")
         a.send("MSG", "public")
-        self.assertEqual(a.recv(), "MSG alice public")
-        self.assertEqual(c.recv_reply(), "MSG alice public")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice public")
+        self.assertEqual(strip_msg_id(c.recv_reply()), "MSG alice public")
 
     def test_dm_unknown_user(self):
         a = self.connect("alice")
@@ -187,7 +200,7 @@ class MessagingTests(ServerTestCase):
     def test_unicode_message(self):
         a = self.connect("alice")
         a.send("MSG", "Salom! Привет 👋")
-        self.assertEqual(a.recv(), "MSG alice Salom! Привет 👋")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice Salom! Привет 👋")
 
 
 class LeavingTests(ServerTestCase):
@@ -252,9 +265,9 @@ class RoomTests(ServerTestCase):
         self.assertEqual(b.recv(), f"JOINED games {P.KIND_PRIVATE} #games")
         self.assertEqual(a.recv(), "NOTICE bob left #lobby for #games")
         a.send("MSG", "lobby only")
-        self.assertEqual(a.recv(), "MSG alice lobby only")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice lobby only")
         b.send("MSG", "games only")
-        self.assertEqual(b.recv(), "MSG bob games only")
+        self.assertEqual(strip_msg_id(b.recv()), "MSG bob games only")
         # Neither saw the other's message: their next lines are these markers.
         a.send("WHO")
         self.assertEqual(a.recv(), f"USERS lobby alice={a.uid}")
@@ -377,7 +390,7 @@ class IdentityTests(ServerTestCase):
         a.send("DM", "bob")
         dm = a.recv().split(" ")[1]
         a.send("MSG", "remember this")
-        self.assertEqual(a.recv(), "MSG alice remember this")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice remember this")
         a.send("QUIT")
         a.close()
 
@@ -648,13 +661,13 @@ class FramingTests(ServerTestCase):
         a.send_raw(b"MSG hel")
         time.sleep(0.05)
         a.send_raw(b"lo\nMSG second\n")
-        self.assertEqual(a.recv(), "MSG alice hello")
-        self.assertEqual(a.recv(), "MSG alice second")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice hello")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice second")
 
     def test_many_messages_in_one_packet(self):
         a = self.connect("alice")
         a.send_raw(b"MSG one\nMSG two\nMSG three\n")
-        self.assertEqual([a.recv() for _ in range(3)],
+        self.assertEqual([strip_msg_id(a.recv()) for _ in range(3)],
                          ["MSG alice one", "MSG alice two", "MSG alice three"])
 
     def test_crlf_line_endings_accepted(self):
@@ -667,19 +680,19 @@ class FramingTests(ServerTestCase):
         a.send_raw(b"MSG " + b"x" * 5000 + b"\n")
         self.assertTrue(a.recv().startswith("ERROR 413"))
         a.send("MSG", "still here")
-        self.assertEqual(a.recv(), "MSG alice still here")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice still here")
 
     def test_invalid_utf8(self):
         a = self.connect("alice")
         a.send_raw(b"MSG \xff\xfe\n")
         self.assertTrue(a.recv().startswith("ERROR 400"))
         a.send("MSG", "ok")
-        self.assertEqual(a.recv(), "MSG alice ok")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice ok")
 
     def test_blank_lines_ignored(self):
         a = self.connect("alice")
         a.send_raw(b"\n\n   \nMSG hi\n")
-        self.assertEqual(a.recv(), "MSG alice hi")
+        self.assertEqual(strip_msg_id(a.recv()), "MSG alice hi")
 
 
 class ConcurrencyTests(ServerTestCase):
@@ -713,7 +726,8 @@ class ConcurrencyTests(ServerTestCase):
             self.assertEqual(other, first)  # identical order for everyone
         # Each sender's own messages are still in the order it sent them.
         for i in range(n_clients):
-            mine = [line for line in first if line.startswith(f"MSG user{i} ")]
+            mine = [strip_msg_id(l) for l in first
+                    if strip_msg_id(l).startswith(f"MSG user{i} ")]
             self.assertEqual(mine, [f"MSG user{i} {i}-{m}" for m in range(n_msgs)])
 
     def test_simultaneous_nick_claims_only_one_wins(self):
@@ -747,7 +761,9 @@ class ConcurrencyTests(ServerTestCase):
         dropped = False
         for i in range(200_000):
             a.send("MSG", text)
-            line = a.recv()
+            line = strip_msg_id(a.recv())
+            if line.startswith("RECEIPT "):
+                continue  # the stalled client acknowledging an earlier message
             if line == "NOTICE stalled has disconnected":
                 dropped = True
                 break
@@ -758,6 +774,97 @@ class ConcurrencyTests(ServerTestCase):
         while (line := a.recv()).startswith("MSG"):
             pass
         self.assertEqual(line, f"USERS lobby alice={a.uid}")
+
+
+
+class ReceiptTests(ServerTestCase):
+    """MSG carries an id, and the sender is told when the others have displayed it."""
+
+    def receipt(self, client):
+        """The next RECEIPT line. recv_reply deliberately skips them, so a test that is
+        waiting for one needs its own reader."""
+        while True:
+            line = client.recv()
+            assert line is not None, "connection closed while waiting for a RECEIPT"
+            if line.startswith("RECEIPT "):
+                return line
+
+    def msg_id(self, client):
+        """The id of the next MSG line, skipping anything queued ahead of it."""
+        while True:
+            line = client.recv()
+            assert line is not None, "connection closed while waiting for a MSG"
+            if line.startswith("MSG "):
+                return line.split(" ")[1]
+
+    def ids(self, client, n):
+        return [self.msg_id(client) for _ in range(n)]
+
+    def test_message_carries_an_increasing_id(self):
+        a = self.connect("alice")
+        a.send("MSG", "one")
+        a.send("MSG", "two")
+        first, second = self.ids(a, 2)
+        self.assertEqual(int(second), int(first) + 1)
+
+    def test_alone_in_a_room_sends_no_receipt(self):
+        """With nobody to receive it there is nothing to report, so the server must not
+        put an extra line on the wire: the next thing back is the answer to WHO."""
+        a = self.connect("alice")
+        a.send("MSG", "to nobody")
+        self.msg_id(a)
+        a.send("WHO")
+        self.assertEqual(a.recv(), f"USERS lobby alice={a.uid}")
+
+    def test_receipt_after_the_other_acknowledges(self):
+        a = self.connect("alice")
+        b = self.connect("bob")
+        a.send("MSG", "did you get this")
+        msg_id = self.msg_id(a)
+        self.assertEqual(strip_msg_id(b.recv_reply()), "MSG alice did you get this")
+        b.send("SEEN", msg_id)
+        self.assertEqual(self.receipt(a), f"RECEIPT {msg_id} 1 1")
+
+    def test_receipt_counts_up_with_each_reader(self):
+        a = self.connect("alice")
+        b = self.connect("bob")
+        c = self.connect("carol")
+        a.send("MSG", "to both of you")
+        msg_id = self.msg_id(a)
+        b.send("SEEN", msg_id)
+        self.assertEqual(self.receipt(a), f"RECEIPT {msg_id} 1 2")
+        c.send("SEEN", msg_id)
+        self.assertEqual(self.receipt(a), f"RECEIPT {msg_id} 2 2")
+
+    def test_sender_does_not_acknowledge_its_own(self):
+        a = self.connect("alice")
+        b = self.connect("bob")
+        a.send("MSG", "mine")
+        msg_id = self.msg_id(a)
+        a.send("SEEN", msg_id)      # the sender was never expected to
+        b.send("SEEN", msg_id)
+        self.assertEqual(self.receipt(a), f"RECEIPT {msg_id} 1 1")
+
+    def test_leaving_stops_the_wait(self):
+        a = self.connect("alice")
+        b = self.connect("bob")
+        a.send("MSG", "answer me")
+        msg_id = self.msg_id(a)
+        b.close()
+        # Bob can no longer acknowledge it, so the message completes with him removed.
+        self.assertEqual(self.receipt(a), f"RECEIPT {msg_id} 1 1")
+
+    def test_unknown_id_is_ignored(self):
+        a = self.connect("alice")
+        b = self.connect("bob")
+        b.send("SEEN", "99999")
+        b.send("MSG", "still working")
+        self.assertEqual(strip_msg_id(b.recv_reply()), "MSG bob still working")
+
+    def test_seen_without_a_number_is_rejected(self):
+        a = self.connect("alice")
+        a.send("SEEN", "banana")
+        self.assertTrue(a.recv_reply().startswith("ERROR 400 "))
 
 
 class LineReaderTests(unittest.TestCase):
