@@ -45,7 +45,7 @@ Put the server log on the projector: it shows every connection and departure as 
 
 - **A:** `/who` — every name comes with its user ID, e.g. `alexis @7c1f20`.
 - **A:** `/dm @7c1f20` (or `/dm alexis`). Aden is moved into the private chat; the header
-  names Alexis, and the lobby sees `aden left #lobby for #dm-…`.
+  names Alexis, and the lobby sees `aden left lobby for dm-…`.
 - **A and L:** exchange a line or two. S sees none of it.
 - **S:** `/rooms` — the private chat is not in Rakhmatillo's list at all. Only its two
   people can see it, and only they can enter it.
@@ -58,9 +58,9 @@ history survives a quit, which lives on the server rather than in the client.
 
 ## 4. Rooms, invitations and history (3 min)
 
-- **L:** `/new public Games Night`. S and A see `alexis left #lobby for Games Night` — room names take spaces and punctuation.
-- **L:** types a couple of lines in #games. S and A don't see them.
-- **S:** `/rooms` shows `#games (1)` and `#lobby (2)`.
+- **L:** `/new public Games Night`. S and A see `alexis left lobby for Games Night` — room names take spaces and punctuation.
+- **L:** types a couple of lines in games. S and A don't see them.
+- **S:** `/rooms` shows `games (1)` and `lobby (2)`.
 - **A:** `/join games`. Aden immediately sees **the lines Alexis already sent**, dimmed with
   timestamps. That's history for late joiners.
 - **L:** `/new Hideout / Planning` — no `public`, so it is private. **S:** `/rooms` does not
@@ -68,13 +68,13 @@ history survives a quit, which lives on the server rather than in the client.
 - **L:** `/invite @<S's id> Hideout / Planning`. Rakhmatillo gets the invitation, and now
   `/rooms` lists it and `/join Hideout / Planning` works. Commands take the name you see.
 - **A:** `/delete Hideout / Planning` → `error 403`, because Alexis owns it, not Aden.
-- **L:** `/delete Hideout / Planning`. Everyone inside is moved to `#lobby` and the history
+- **L:** `/delete Hideout / Planning`. Everyone inside is moved to `lobby` and the history
   is gone: creating it again starts empty.
 
 ## 5. Web front end (1–2 min, stretch)
 
 - Projector: open `http://<S-IP>:8080` and join as `browser`. Optionally invite someone in the audience to open it on their phone.
-- Send a message from the browser and it appears in the terminals. Click `#games` in the sidebar to switch rooms, or a name under **In this room** to open a private chat with that person — both are the same action, because both are rooms.
+- Send a message from the browser and it appears in the terminals. Click `games` in the sidebar to switch rooms, or a name under **In this room** to open a private chat with that person — both are the same action, because both are rooms.
 - Private rooms carry a lock in the sidebar. For one you own, the header offers **Invite** and **Delete room**; for anyone else's, neither appears.
 - Click a name under **In this room** to open a private chat with them. It gets its own transcript under **Private chats**, with an unread badge, and anything typed there goes to that person instead of the room.
 

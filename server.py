@@ -152,9 +152,9 @@ class Room:
         person, since "dm-4f2a91" means nothing to a reader; any other room goes by its
         title, falling back to its name when it has none."""
         if self.kind != P.KIND_DM:
-            # A titled room goes by its title; an untitled one keeps the familiar
-            # "#name" form. Either way this is the one string clients display.
-            return self.title or "#" + self.name
+            # A titled room goes by its title, an untitled one by its plain name.
+            # Either way this is the one string clients display.
+            return self.title or self.name
         other = next((u for u in self.partners if u != uid), None)
         return users[other].nick if other in users else self.name
 
@@ -403,7 +403,7 @@ class ChatServer:
             if room is None:
                 return
         if room.name == client.room:
-            client.send("NOTICE", f"You are already in #{room.name}")
+            client.send("NOTICE", f"You are already in {room.label_for(client.uid, self.by_uid)}")
             return
         self.move(client, room.name)
 
@@ -465,7 +465,7 @@ class ChatServer:
             self.dms[pair] = name
             self.log(f"private chat {name} opened between {client.nick} and {other.nick}")
         if name == client.room:
-            client.send("NOTICE", f"You are already in #{name}")
+            client.send("NOTICE", f"You are already in {self.rooms[name].label_for(client.uid, self.by_uid)}")
             return
         self.move(client, name)
 

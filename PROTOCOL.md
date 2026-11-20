@@ -18,7 +18,7 @@ TCP is a byte stream, not a message stream: one `recv()` can return half a line 
 |---|---|
 | Nicknames | 1–16 characters from `A–Z a–z 0–9 _ -`. Unique, compared **case-insensitively** (`Bob` and `bob` can't both be connected). The server keeps the capitalization chosen at `HELLO`. |
 | Room names | What people type and see, up to 48 characters on one line: spaces and punctuation are allowed, so `Study Group / CS 475` is a room name. |
-| Room wire names | Every room also has a one-word name from `A–Z a–z 0–9 _ -`, at most 16 characters, derived from the room name by lowercasing it and replacing every run of other characters with `-` (`Study Group / CS 475` → `study-group-cs`). This is what appears in the protocol's **non-final** fields, where a space would split the message. A leading `#` is accepted and stripped, so `JOIN #Games` and `JOIN games` mean the same room. A room whose name is already one word, like `games`, has no separate name to show and is displayed as `#games`. |
+| Room wire names | Every room also has a one-word name from `A–Z a–z 0–9 _ -`, at most 16 characters, derived from the room name by lowercasing it and replacing every run of other characters with `-` (`Study Group / CS 475` → `study-group-cs`). This is what appears in the protocol's **non-final** fields, where a space would split the message. A leading `#` is accepted and stripped, so `JOIN #Games` and `JOIN games` mean the same room. A room whose name is already one word, like `games`, has no separate name to show and is displayed as `games`. |
 | User IDs | Assigned by the server at `HELLO`: `@` followed by six hex digits, e.g. `@4f2a91`. `@` is not a legal nickname character, so an ID can never be mistaken for a nickname. An ID belongs to a nickname for as long as the server runs: disconnect and reconnect under the same nickname and you get the same ID back, along with the private rooms and history that go with it. There is no password, so whoever claims a free nickname inherits that identity — see §10. |
 
 ## 3. Client → Server
@@ -44,13 +44,13 @@ Wherever a command takes `<room>`, it is the last field, so it accepts either th
 | Message | Meaning |
 |---|---|
 | `WELCOME <nick> <@id>` | Nickname accepted. The client is registered and `<@id>` is its user ID. |
-| `JOINED <room> <kind> <shown>` | You are now in `<room>` (a wire name). `<kind>` is `public`, `private` or `dm`. `<shown>` is free text running to the end of the line: the other person's nickname for a `dm`, the room's name otherwise (`#lobby` when it has no separate name). Followed by that room's history. |
+| `JOINED <room> <kind> <shown>` | You are now in `<room>` (a wire name). `<kind>` is `public`, `private` or `dm`. `<shown>` is free text running to the end of the line: the other person's nickname for a `dm`, the room's name otherwise (the room name itself when it has no separate title). Followed by that room's history. |
 | `HISTORY <HH:MM> <from> <text>` | A message sent in the room before you arrived (oldest first, at most 20). |
 | `MSG <id> <from> <text>` | A message from `<from>` to your room. `<id>` numbers it within that room and is what `SEEN` refers to. |
 | `RECEIPT <id> <seen> <total>` | Only to the sender of `<id>`: `<seen>` of the `<total>` people who were in the room when it was sent have displayed it. Sent each time the count rises; not sent at all when `<total>` is 0. |
 | `INVITED <room> <from> <shown>` | `<from>` has let you into the private room `<room>`, whose name on screen is `<shown>`. |
 | `USERS <room> <nick>=<@id> …` | Reply to `WHO`, sorted alphabetically. |
-| `ROOM <name> <count> <kind> <owner> <shown>` | One room you may see, in reply to `ROOMS`. `<owner>` is the creator's nickname, or `-` for `#lobby` and private chats. `<shown>` is the name on screen, free text to the end of the line. |
+| `ROOM <name> <count> <kind> <owner> <shown>` | One room you may see, in reply to `ROOMS`. `<owner>` is the creator's nickname, or `-` for `lobby` and private chats. `<shown>` is the name on screen, free text to the end of the line. |
 | `ENDROOMS` | Closes a run of `ROOM` lines. Clients swap in the new list here, so a listing is never seen half-applied. |
 | `NOTICE <text>` | A human-readable announcement (joins, leaves, goodbye, shutdown). |
 | `ERROR <code> <reason>` | Your last request was rejected. Nothing changed, and the connection stays open. |
@@ -100,8 +100,8 @@ two once everyone expected has displayed it.
 C: HELLO alice
 S: WELCOME alice @4f2a91             (to alice: her nickname and her user ID)
 S: NOTICE alice has joined the chat  (to every other user, in every room)
-S: JOINED lobby public #lobby        (to alice: everyone starts in #lobby)
-S: HISTORY 14:02 bob hi all          (to alice: up to 20 recent #lobby messages)
+S: JOINED lobby public lobby        (to alice: everyone starts in lobby)
+S: HISTORY 14:02 bob hi all          (to alice: up to 20 recent lobby messages)
 ```
 After `ERROR 432` or `ERROR 433`, the client is still connected and can send `HELLO` again.
 
@@ -117,7 +117,7 @@ A private chat is **a room**, not a separate kind of message. `DM` moves you int
 room you share with one other person, creating it the first time:
 ```
 C(alice): DM @7c1f20
-S:        NOTICE alice left #lobby                  (to the users still in #lobby)
+S:        NOTICE alice left lobby                  (to the users still in lobby)
 S:        JOINED dm-4f2a91 dm bob                   (to alice)
 S:        HISTORY ...                               (to alice: what you two said before)
 ```
@@ -137,10 +137,10 @@ A private chat has no owner, so no one can delete it.
 ### Changing rooms
 ```
 C(alice): JOIN games
-S:        NOTICE alice left #lobby for #games   (to the users still in #lobby)
-S:        NOTICE alice has joined #games        (to the users already in #games)
-S:        JOINED games private #games           (to alice)
-S:        HISTORY ...                           (to alice: #games history)
+S:        NOTICE alice left lobby for games   (to the users still in lobby)
+S:        NOTICE alice has joined games        (to the users already in games)
+S:        JOINED games private games           (to alice)
+S:        HISTORY ...                           (to alice: games history)
 ```
 A client is in exactly one room at a time — private chats included, since those are rooms
 too. Rooms are kept, with their history, until their owner deletes them or the server
@@ -158,7 +158,7 @@ the typed name to send as free text at the end of `JOINED`, `ROOM` and `INVITED`
 Two different names can slug down to the same wire name; the second room gets a numbered
 one (`study-group-2`), so wire names stay unique while the names on screen stay as typed.
 A name that is already one word is not kept separately: `JOIN games` gives a room shown as
-`#games`.
+`games`.
 
 Because every command takes the room last, people refer to rooms by the name they can see:
 `DELROOM Study Group / CS 475` and `INVITE bob Study Group / CS 475` both work, as does a
@@ -172,7 +172,7 @@ Every room is either **public** or **private**, and the person who creates it ch
   listed only for its owner and the people invited to it, and only they may `JOIN`.
   Everyone else gets `ERROR 403`, and the room does not appear in their `ROOMS` at all.
 
-`#lobby` is public, has no owner, and always exists.
+`lobby` is public, has no owner, and always exists.
 
 ### Inviting someone
 ```
@@ -190,11 +190,11 @@ exist gives `ERROR 481`; for someone who does not exist, `ERROR 404`.
 ```
 C(alice): DELROOM hideout
 S:        NOTICE #hideout was deleted by alice   (to everyone in it, alice included)
-S:        JOINED lobby public #lobby             (to each of them: everyone lands in #lobby)
+S:        JOINED lobby public lobby             (to each of them: everyone lands in lobby)
 S:        NOTICE Deleted #hideout and its history   (to alice)
 ```
 Only the room's owner may delete it; anyone else gets `ERROR 403`, and so does an attempt
-on `#lobby`. The room's history goes with it, so a later room of the same name starts
+on `lobby`. The room's history goes with it, so a later room of the same name starts
 empty. `DELROOM` on a room that does not exist gives `ERROR 481`.
 
 ### Leaving cleanly

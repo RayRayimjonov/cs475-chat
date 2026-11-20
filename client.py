@@ -59,7 +59,7 @@ def format_server_line(line, me):
     if command == "INVITED":
         name, _, tail = rest.partition(" ")
         who, _, shown = tail.partition(" ")
-        shown = shown or "#" + name
+        shown = shown or name
         return paint(f"-- {who} invited you to {shown}. Type /join {shown} to go there.",
                      "magenta")
     if command == "HISTORY":

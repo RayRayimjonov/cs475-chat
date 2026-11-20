@@ -80,7 +80,7 @@ class ServerTestCase(unittest.TestCase):
         self.clients.append(c)
         if nick:
             c.welcome(nick)
-            self.assertEqual(c.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} #{P.LOBBY}")
+            self.assertEqual(c.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} {P.LOBBY}")
         return c
 
     def rooms_of(self, c):
@@ -182,7 +182,7 @@ class MessagingTests(ServerTestCase):
         # Back in the lobby, the next thing carol hears from alice is the public
         # message: the private one never reached her at all.
         a.send("JOIN", P.LOBBY)
-        self.assertEqual(a.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} #{P.LOBBY}")
+        self.assertEqual(a.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} {P.LOBBY}")
         a.send("MSG", "public")
         self.assertEqual(strip_msg_id(a.recv()), "MSG alice public")
         self.assertEqual(strip_msg_id(c.recv_reply()), "MSG alice public")
@@ -241,7 +241,7 @@ class RoomTests(ServerTestCase):
     def test_join_creates_room_and_confirms(self):
         a = self.connect("alice")
         a.send("JOIN", "#Games")  # leading # and capitals are normalized
-        self.assertEqual(a.recv(), f"JOINED games {P.KIND_PRIVATE} #games")
+        self.assertEqual(a.recv(), f"JOINED games {P.KIND_PRIVATE} games")
 
     def test_invalid_room_name(self):
         a = self.connect("alice")
@@ -255,15 +255,15 @@ class RoomTests(ServerTestCase):
     def test_join_same_room(self):
         a = self.connect("alice")
         a.send("JOIN", "lobby")
-        self.assertEqual(a.recv(), "NOTICE You are already in #lobby")
+        self.assertEqual(a.recv(), "NOTICE You are already in lobby")
 
     def test_messages_stay_in_room(self):
         a = self.connect("alice")
         b = self.connect("bob")
         a.recv()  # bob joined
         b.send("JOIN", "games")
-        self.assertEqual(b.recv(), f"JOINED games {P.KIND_PRIVATE} #games")
-        self.assertEqual(a.recv(), "NOTICE bob left #lobby for #games")
+        self.assertEqual(b.recv(), f"JOINED games {P.KIND_PRIVATE} games")
+        self.assertEqual(a.recv(), "NOTICE bob left lobby for games")
         a.send("MSG", "lobby only")
         self.assertEqual(strip_msg_id(a.recv()), "MSG alice lobby only")
         b.send("MSG", "games only")
@@ -282,7 +282,7 @@ class RoomTests(ServerTestCase):
         a.recv()  # JOINED games
         b.recv()  # alice left lobby
         b.send("JOIN", "games")
-        self.assertEqual(a.recv(), "NOTICE bob has joined #games")
+        self.assertEqual(a.recv(), "NOTICE bob has joined games")
 
     def test_private_chat_is_reachable_from_any_room(self):
         a = self.connect("alice")
@@ -304,8 +304,8 @@ class RoomTests(ServerTestCase):
         a.recv()
         a.send("ROOMS")
         self.assertEqual(self.rooms_of(a),
-                         {"games": ("1", P.KIND_PRIVATE, "alice", "#games"),
-                          "lobby": ("1", P.KIND_PUBLIC, "-", "#lobby")})
+                         {"games": ("1", P.KIND_PRIVATE, "alice", "games"),
+                          "lobby": ("1", P.KIND_PUBLIC, "-", "lobby")})
 
     def test_quit_leaves_room(self):
         a = self.connect("alice")
@@ -326,7 +326,7 @@ class HistoryTests(ServerTestCase):
         b = TestClient(self.server.port)
         self.clients.append(b)
         self.assertTrue(b.hello("bob").startswith("WELCOME bob "))
-        self.assertEqual(b.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} #{P.LOBBY}")
+        self.assertEqual(b.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} {P.LOBBY}")
         h1, h2 = b.recv(), b.recv()
         self.assertRegex(h1, r"^HISTORY \d\d:\d\d alice first$")
         self.assertRegex(h2, r"^HISTORY \d\d:\d\d alice second$")
@@ -339,7 +339,7 @@ class HistoryTests(ServerTestCase):
         a.recv()
         b = self.connect("bob")  # lobby history is empty, so nothing follows JOINED
         b.send("JOIN", "games")
-        self.assertEqual(b.recv(), f"JOINED games {P.KIND_PUBLIC} #games")
+        self.assertEqual(b.recv(), f"JOINED games {P.KIND_PUBLIC} games")
         self.assertRegex(b.recv(), r"^HISTORY \d\d:\d\d alice in games$")
 
     def test_history_limited(self):
@@ -411,7 +411,7 @@ class VisibilityTests(ServerTestCase):
         b = self.connect("bob")
         a.recv()
         a.send("JOIN", "hideout")
-        self.assertEqual(a.recv(), f"JOINED hideout {P.KIND_PRIVATE} #hideout")
+        self.assertEqual(a.recv(), f"JOINED hideout {P.KIND_PRIVATE} hideout")
         b.recv()  # alice left lobby
         b.send("ROOMS")
         self.assertNotIn("hideout", self.rooms_of(b))
@@ -430,12 +430,12 @@ class VisibilityTests(ServerTestCase):
         b = self.connect("bob")
         a.recv()
         a.send("CREATE", P.KIND_PUBLIC, "townsq")
-        self.assertEqual(a.recv(), f"JOINED townsq {P.KIND_PUBLIC} #townsq")
+        self.assertEqual(a.recv(), f"JOINED townsq {P.KIND_PUBLIC} townsq")
         b.recv()
         b.send("ROOMS")
         self.assertIn("townsq", self.rooms_of(b))
         b.send("JOIN", "townsq")
-        self.assertEqual(b.recv_reply(), f"JOINED townsq {P.KIND_PUBLIC} #townsq")
+        self.assertEqual(b.recv_reply(), f"JOINED townsq {P.KIND_PUBLIC} townsq")
 
     def test_create_rejects_a_name_already_taken(self):
         a = self.connect("alice")
@@ -450,7 +450,7 @@ class VisibilityTests(ServerTestCase):
         a.recv()
         a.send("ROOMS")
         listing = self.rooms_of(a)
-        self.assertEqual(listing["club"], ("1", P.KIND_PRIVATE, "alice", "#club"))
+        self.assertEqual(listing["club"], ("1", P.KIND_PRIVATE, "alice", "club"))
         self.assertEqual(listing[P.LOBBY][1], P.KIND_PUBLIC)
 
 
@@ -507,12 +507,12 @@ class RoomNameTests(ServerTestCase):
         a.send("ROOMS")
         listing = self.rooms_of(a)
         self.assertEqual(listing[made][3], self.FANCY)
-        self.assertEqual(listing[P.LOBBY][3], f"#{P.LOBBY}")
+        self.assertEqual(listing[P.LOBBY][3], P.LOBBY)
 
     def test_a_plain_one_word_name_is_not_treated_as_a_title(self):
         a = self.connect("alice")
         a.send("JOIN", "games")
-        self.assertEqual(a.recv(), f"JOINED games {P.KIND_PRIVATE} #games")
+        self.assertEqual(a.recv(), f"JOINED games {P.KIND_PRIVATE} games")
 
     def test_two_names_that_slug_the_same_get_different_rooms(self):
         a = self.connect("alice")
@@ -563,23 +563,23 @@ class InviteTests(ServerTestCase):
     def test_invite_by_id_lets_someone_in(self):
         self.a.send("INVITE", self.b.uid, "hideout")
         self.assertTrue(self.a.recv().startswith("NOTICE Invited bob"))
-        self.assertEqual(self.b.recv_reply(), "INVITED hideout alice #hideout")
+        self.assertEqual(self.b.recv_reply(), "INVITED hideout alice hideout")
         self.b.send("JOIN", "hideout")
-        self.assertEqual(self.b.recv_reply(), f"JOINED hideout {P.KIND_PRIVATE} #hideout")
+        self.assertEqual(self.b.recv_reply(), f"JOINED hideout {P.KIND_PRIVATE} hideout")
 
     def test_invite_by_nickname_also_works(self):
         self.a.send("INVITE", "bob", "hideout")
         self.a.recv()
-        self.assertEqual(self.b.recv_reply(), "INVITED hideout alice #hideout")
+        self.assertEqual(self.b.recv_reply(), "INVITED hideout alice hideout")
         self.b.send("JOIN", "hideout")
-        self.assertEqual(self.b.recv_reply(), f"JOINED hideout {P.KIND_PRIVATE} #hideout")
+        self.assertEqual(self.b.recv_reply(), f"JOINED hideout {P.KIND_PRIVATE} hideout")
 
     def test_only_the_owner_may_invite(self):
         self.a.send("INVITE", "bob", "hideout")
         self.a.recv()
-        self.assertEqual(self.b.recv_reply(), "INVITED hideout alice #hideout")
+        self.assertEqual(self.b.recv_reply(), "INVITED hideout alice hideout")
         self.b.send("JOIN", "hideout")
-        self.assertEqual(self.b.recv_reply(), f"JOINED hideout {P.KIND_PRIVATE} #hideout")
+        self.assertEqual(self.b.recv_reply(), f"JOINED hideout {P.KIND_PRIVATE} hideout")
         c = self.connect("carol")
         self.b.send("INVITE", "carol", "hideout")
         self.assertTrue(self.b.recv_reply().startswith(f"ERROR {P.ERR_FORBIDDEN}"))
@@ -616,9 +616,9 @@ class DeleteRoomTests(ServerTestCase):
         b.recv_reply()
         a.recv()  # bob joined #club
         a.send("DELROOM", "club")
-        self.assertEqual(a.recv(), "NOTICE #club was deleted by alice")
-        self.assertEqual(a.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} #{P.LOBBY}")
-        self.assertEqual(b.recv_reply(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} #{P.LOBBY}")
+        self.assertEqual(a.recv(), "NOTICE club was deleted by alice")
+        self.assertEqual(a.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} {P.LOBBY}")
+        self.assertEqual(b.recv_reply(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} {P.LOBBY}")
 
     def test_deleting_a_room_destroys_its_history(self):
         a = self.connect("alice")
@@ -630,7 +630,7 @@ class DeleteRoomTests(ServerTestCase):
         a.recv_reply()
         # A new room of the same name starts empty.
         a.send("CREATE", P.KIND_PUBLIC, "club")
-        self.assertEqual(a.recv_reply(), f"JOINED club {P.KIND_PUBLIC} #club")
+        self.assertEqual(a.recv_reply(), f"JOINED club {P.KIND_PUBLIC} club")
         a.send("WHO")  # nothing queued between JOINED and this reply means no history
         self.assertTrue(a.recv().startswith("USERS club"))
 

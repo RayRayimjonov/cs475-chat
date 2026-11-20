@@ -97,7 +97,7 @@ class GatewayTests(unittest.TestCase):
         if nick:
             self.assertEqual(s.send(f"HELLO {nick}"), 204)
             self.assertTrue(s.recv().startswith(f"WELCOME {nick} "))
-            self.assertEqual(s.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} #{P.LOBBY}")
+            self.assertEqual(s.recv(), f"JOINED {P.LOBBY} {P.KIND_PUBLIC} {P.LOBBY}")
         return s
 
     def test_serves_page(self):
@@ -124,7 +124,7 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(joined.startswith("JOINED dm-"), joined)
         self.assertEqual(joined.split(" ")[2:], [P.KIND_DM, "webby"])
         # The lobby is told term left, but not that it was for a private chat.
-        self.assertEqual(w.recv_reply_skipping_receipts(), "NOTICE term left #lobby")
+        self.assertEqual(w.recv_reply_skipping_receipts(), "NOTICE term left lobby")
 
     def test_nick_error_then_retry_same_session(self):
         self.web("taken")

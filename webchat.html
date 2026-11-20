@@ -56,6 +56,7 @@
   /* shell */
   #chat { height: 100%; display: none; grid-template-columns: 300px 1fr; }
   #chat.on { display: grid; }
+  #chat.on.info-open { grid-template-columns: 300px 1fr 320px; }
 
   /* ---- left chat list ---- */
   aside {
@@ -90,7 +91,7 @@
   .avatar.sm { width: 30px; height: 30px; font-size: 13px; align-self: flex-end; }
   /* A picture covers the letter underneath it; if it fails to load, the letter shows. */
   .avatar.has-pic { background-size: cover; background-position: center; color: transparent; }
-  #pic-btn { font-size: 15px; line-height: 1; padding: 6px 10px; }
+  #settings-btn { font-size: 15px; line-height: 1; padding: 6px 10px; }
 
   #new-room { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 12px 0; }
   #new-room input { flex: 1 1 100%; padding: 7px 10px; border-radius: 10px; }
@@ -111,7 +112,13 @@
     padding: 8px 18px; border-bottom: 1px solid var(--border); background: var(--panel);
     display: flex; align-items: center; gap: 12px; min-height: 56px;
   }
-  .title-block { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .title-block {
+    flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;
+    align-items: flex-start; background: none; border: 0; padding: 4px 6px;
+    border-radius: 8px; cursor: pointer; color: inherit; text-align: left;
+  }
+  .title-block:hover { background: var(--hover); }
+  .avatar.hdr { width: 40px; height: 40px; font-size: 17px; }
   header h1 {
     margin: 0; font-size: 16px; font-weight: 500; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -196,32 +203,63 @@
   /* date separator reads a little stronger than a service notice */
   .line.date { font-weight: 500; }
 
+  /* room / profile panel */
+  #info {
+    background: var(--panel); border-left: 1px solid var(--border);
+    display: none; flex-direction: column; min-height: 0; overflow-y: auto;
+  }
+  #chat.on.info-open #info { display: flex; }
+  .info-head {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    background: var(--panel); z-index: 1;
+  }
+  .info-head strong { flex: 1; font-size: 15px; font-weight: 600; }
+  .info-head button, .info-back {
+    background: none; border: 0; color: var(--muted); font-size: 16px;
+    padding: 4px 8px; border-radius: 8px; cursor: pointer;
+  }
+  .info-head button:hover, .info-back:hover { background: var(--hover); }
+  #info-body { padding: 16px 14px; display: flex; flex-direction: column; gap: 14px; }
+  .info-hero { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .info-hero .avatar { width: 96px; height: 96px; font-size: 40px; }
+  .info-hero .name { font-size: 18px; font-weight: 600; text-align: center; }
+  .info-hero .uid { color: var(--muted); font-size: 13px; }
+  .info-actions { display: flex; flex-direction: column; gap: 6px; }
+  .info-actions button {
+    background: none; border: 0; color: var(--text); text-align: left;
+    padding: 9px 10px; border-radius: 10px; font-weight: 400; cursor: pointer;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .info-actions button:hover { background: var(--hover); }
+  .info-actions button.danger { color: var(--error); }
+  .info-section-title {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin-top: 4px;
+  }
+  .info-note { color: var(--muted); font-size: 12px; line-height: 1.45; }
+  #info ul { list-style: none; margin: 0; padding: 0; }
+  #info li button {
+    width: 100%; background: none; border: 0; color: var(--text); font-weight: 400;
+    display: flex; align-items: center; gap: 10px; padding: 7px 8px;
+    border-radius: 10px; cursor: pointer; text-align: left;
+  }
+  #info li button:hover { background: var(--hover); }
+
   /* wallpaper picker */
-  #bg-btn { font-size: 16px; line-height: 1; padding: 6px 10px; }
-  #bg-picker {
-    position: absolute; right: 16px; top: 58px; z-index: 5; background: var(--panel);
-    border: 1px solid var(--border); border-radius: 14px; padding: 14px;
-    box-shadow: 0 10px 34px var(--bubble-shadow); display: none;
-    grid-template-columns: repeat(3, 82px); gap: 10px;
-    max-height: 70vh; overflow-y: auto;
+  .wp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .wp-tile {
+    height: 104px; padding: 0; border: 0; border-radius: 10px; position: relative;
+    overflow: hidden; cursor: pointer;
+    background-size: 54px 54px, cover; background-repeat: repeat, no-repeat;
   }
-  #bg-picker.on { display: grid; }
-  #bg-picker h3 {
-    grid-column: 1 / -1; margin: 0 0 2px; font-size: 15px; font-weight: 600;
-  }
-  #bg-picker button {
-    width: 82px; height: 116px; padding: 0; border: 0; border-radius: 10px;
-    position: relative; overflow: hidden; cursor: pointer;
-    background-size: 54px 54px, cover;
-    background-repeat: repeat, no-repeat;
-  }
-  #bg-picker button::after {
-    content: "✓"; position: absolute; right: 6px; bottom: 6px;
-    width: 22px; height: 22px; border-radius: 50%; display: none;
-    background: var(--accent); color: #fff; font-size: 13px; font-weight: 700;
+  .wp-tile::after {
+    content: "✓"; position: absolute; right: 5px; bottom: 5px;
+    width: 20px; height: 20px; border-radius: 50%; display: none;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
     align-items: center; justify-content: center;
   }
-  #bg-picker button.current::after { display: flex; }
+  .wp-tile.current::after { display: flex; }
   main { position: relative; }
 
   /* service messages: notices, errors, dividers — centred pills on the wallpaper */
@@ -301,25 +339,29 @@
   </aside>
   <main>
     <header>
-      <div class="title-block">
-        <h1 id="room-title">#lobby</h1>
+      <div class="avatar hdr" id="room-avatar"></div>
+      <button class="title-block" id="open-info" title="Room details">
+        <h1 id="room-title">lobby</h1>
         <div id="room-sub"></div>
-      </div>
-      <span class="who" id="me"></span>
-      <button id="invite-btn" hidden>Invite</button>
-      <button id="delete-btn" hidden>Delete room</button>
-      <button id="pic-btn" title="Set your profile picture">🙂</button>
+      </button>
       <input id="pic-file" type="file" accept="image/*" hidden>
-      <button id="bg-btn" title="Chat background">🎨</button>
+      <button id="settings-btn" title="You and your settings">⚙</button>
       <button id="leave">Leave</button>
     </header>
-    <div id="bg-picker" role="group" aria-label="Chat background"></div>
     <div id="log" aria-live="polite"></div>
     <form id="compose">
       <input id="text" autocomplete="off" placeholder="Message, or /dm nick, /join room, /help">
       <button>Send</button>
     </form>
   </main>
+  <section id="info" aria-label="Details">
+    <div class="info-head">
+      <button class="info-back" id="info-back" hidden title="Back">←</button>
+      <strong id="info-title"></strong>
+      <button id="info-close" title="Close">✕</button>
+    </div>
+    <div id="info-body"></div>
+  </section>
 </div>
 
 <script>
@@ -333,6 +375,7 @@ let me = null, myUid = null;
 let room = null, roomKind = null, roomLabel = "";
 const roomInfo = new Map();  // wire name -> {count, kind, shown, owner}
 let pendingRooms = [];       // ROOM lines collected until ENDROOMS closes the list
+let lastUsers = [];          // the current room's members, as the panel last saw them
 let sendChain = Promise.resolve();
 
 // ---- transport -----------------------------------------------------------
@@ -381,10 +424,16 @@ function split(rest, n) {
   return parts;
 }
 
+// The top bar shows just the name; the line under it already says what kind of
+// chat this is, so repeating "(private chat)" there reads as a stutter.
+function headerTitle() {
+  return roomKind === "dm" ? roomLabel : (roomLabel || room);
+}
+
 function roomTitle(name, kind, shown) {
   // The server sends the name to display: the other person for a private chat, the
   // room's own name otherwise. It is free text, so it may hold spaces and punctuation.
-  return kind === "dm" ? `${shown || "private chat"} (private chat)` : (shown || "#" + name);
+  return kind === "dm" ? `${shown || "private chat"} (private chat)` : (shown || name);
 }
 
 function handleLine(line) {
@@ -396,8 +445,8 @@ function handleLine(line) {
       registered = true;
       $("login").style.display = "none";
       $("chat").classList.add("on");
-      $("me").textContent = `you are ${me} ${myUid}`;
-      $("me").title = `Your ID is ${myUid}. Others use it to invite you.`;
+      // Who you are now lives in the settings panel behind the gear.
+      $("settings-btn").title = `You are ${me} ${myUid} — your profile and settings`;
       $("text").focus();
       break;
     }
@@ -409,12 +458,13 @@ function handleLine(line) {
       $("log").replaceChildren();
       datePillShown = false;
       sent.clear();
-      $("room-title").textContent = roomTitle(room, roomKind, roomLabel);
+      $("room-title").textContent = headerTitle();
       $("text").placeholder = roomKind === "dm"
         ? `Message to ${roomLabel}`
         : "Message, or /dm nick, /join room, /help";
       addLine("divider", `— you are now in ${roomTitle(room, roomKind, roomLabel)} —`);
       renderRoomControls();
+      renderHeaderAvatar();
       send("WHO"); send("ROOMS");
       break;
     }
@@ -450,7 +500,7 @@ function handleLine(line) {
     }
     case "INVITED": {
       const [name, from, shown] = split(rest, 2);
-      addInvite(name, from, shown.trim() || "#" + name);
+      addInvite(name, from, shown.trim() || name);
       send("ROOMS");
       break;
     }
@@ -458,15 +508,29 @@ function handleLine(line) {
       // PROTOCOL.md: a JOIN for the room you are in answers "You are already in #<room>".
       // Treat it as the server telling us where we actually are, in case our idea of the
       // current room had drifted from its own.
-      const already = /^You are already in #(\S+)$/.exec(rest);
-      if (already) { room = already[1]; $("room-title").textContent = roomTitle(room, roomKind, roomLabel); }
+      const already = /^You are already in (.+)$/.exec(rest);
+      if (already) {
+        // The notice names the room as it is shown, so map that back to a wire name.
+        const match = [...roomInfo.entries()].find(([, i]) => i.shown === already[1]);
+        if (match) {
+          room = match[0]; roomLabel = match[1].shown; roomKind = match[1].kind;
+          $("room-title").textContent = headerTitle();
+        }
+      }
       addLine("notice", rest);
       if (registered && rest !== "Goodbye") { send("WHO"); send("ROOMS"); }
       break;
     }
     case "USERS": {
       const [r, pairs] = split(rest, 1);
-      renderUsers(pairs ? pairs.split(" ").map((t) => t.split("=")) : []);
+      const people = pairs ? pairs.split(" ").map((t) => t.split("=")) : [];
+      renderUsers(people);
+      if (asked.who) {
+        asked.who = false;
+        addLine("notice", people.length
+          ? `In this room: ${people.map(([n, id]) => `${n} ${id}`).join(", ")}`
+          : "This room is empty.");
+      }
       break;
     }
     case "ROOM":
@@ -474,10 +538,19 @@ function handleLine(line) {
       // because it is free text. Collected until ENDROOMS swaps the list in at once.
       pendingRooms.push(split(rest, 4));
       break;
-    case "ENDROOMS":
-      renderRooms(pendingRooms);
+    case "ENDROOMS": {
+      const rows = pendingRooms;
+      renderRooms(rows);
       pendingRooms = [];
+      if (asked.rooms) {
+        asked.rooms = false;
+        addLine("notice", rows.length
+          ? `Rooms you can see: ${rows.map(([name, count, , , shown]) =>
+              `${shown || name} (${count})`).join(", ")}`
+          : "There are no rooms you can see.");
+      }
       break;
+    }
     case "ERROR": {
       const [code, reason] = split(rest, 1);
       if (!registered) { $("login-error").textContent = reason; $("join-btn").disabled = false; }
@@ -529,7 +602,9 @@ function avatar(name, small) {
   el.dataset.nick = name;
   let hash = 0;
   for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
-  el.style.background = AVATAR_COLOURS[hash % AVATAR_COLOURS.length];
+  // backgroundColor, not the background shorthand: the shorthand also writes an
+  // inline background-size of auto, which would beat the cover rule for a picture.
+  el.style.backgroundColor = AVATAR_COLOURS[hash % AVATAR_COLOURS.length];
   el.textContent = [...name.replace(/^[#@\s]+/, "")][0] || "?";
   paintAvatar(el);
   return el;
@@ -549,6 +624,9 @@ function append(div) {
 // A "Today" separator is shown once, when the first message of this visit arrives.
 // History lines carry only a clock time, so we cannot honestly date those.
 let datePillShown = false;
+// Set when the user typed /who or /rooms, so the reply is also written into the
+// transcript instead of only refreshing the sidebar, which looked like nothing.
+const asked = { who: false, rooms: false };
 // our own messages, by id, so a RECEIPT can upgrade the tick on the right bubble
 const sent = new Map();
 
@@ -576,7 +654,7 @@ function addMessage(from, text, { stamp, cls, id }) {
     // Your own messages need no name on them; everyone else's carry one, as in Telegram.
     const n = document.createElement("span");
     n.className = "nick"; n.textContent = from;
-    n.style.color = avatar(from).style.background;
+    n.style.color = avatar(from).style.backgroundColor;
     bubble.append(n);
   }
   const body = document.createElement("span");
@@ -618,18 +696,166 @@ function addInvite(name, from, shown) {
 }
 
 function renderRoomControls() {
-  // Only a room's owner may invite people to it or delete it, so only its owner is
-  // offered the buttons.
+  // The room's own actions live in the panel now, so redraw it if it is open on
+  // this room. Ownership decides what it offers.
+  if (infoView.mode === "room") renderInfo();
+  renderHeaderAvatar();
+}
+
+function renderHeaderAvatar() {
+  // A private chat shows the other person; any other room shows its own initial.
+  const el = $("room-avatar");
+  const label = roomKind === "dm" ? roomLabel : (roomLabel || room);
+  const fresh = avatar(label || "?");
+  el.dataset.nick = fresh.dataset.nick;
+  el.textContent = fresh.textContent;
+  el.style.backgroundColor = fresh.style.backgroundColor;
+  paintAvatar(el);
+}
+
+// ---- the details panel -----------------------------------------------------
+// One panel, three views: the room you are in, somebody's profile, or your own
+// settings. The top bar opens the first, a member opens the second, the gear the
+// third.
+let infoView = { mode: null, nick: null };
+
+function openInfo(mode, nick) {
+  infoView = { mode, nick: nick || null };
+  $("chat").classList.add("info-open");
+  renderInfo();
+}
+
+function closeInfo() {
+  infoView = { mode: null, nick: null };
+  $("chat").classList.remove("info-open");
+}
+
+function action(label, onclick, danger) {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = label; b.onclick = onclick;
+  if (danger) b.className = "danger";
+  return b;
+}
+
+function hero(name, subtitle, big) {
+  const wrap = document.createElement("div");
+  wrap.className = "info-hero";
+  const pic = avatar(name);
+  if (big) pic.classList.remove("sm");
+  const title = document.createElement("div");
+  title.className = "name"; title.textContent = name;
+  wrap.append(pic, title);
+  if (subtitle) {
+    const sub = document.createElement("div");
+    sub.className = "uid"; sub.textContent = subtitle;
+    wrap.append(sub);
+  }
+  return wrap;
+}
+
+function renderInfo() {
+  const body = $("info-body");
+  $("info-back").hidden = infoView.mode !== "user";
+  if (infoView.mode === "room") renderRoomInfo(body);
+  else if (infoView.mode === "user") renderUserInfo(body, infoView.nick);
+  else if (infoView.mode === "me") renderMyInfo(body);
+}
+
+function memberCount(info) {
+  const n = Number((info && info.count) || 0);
+  return `${n} ${n === 1 ? "member" : "members"}`;
+}
+
+function renderRoomInfo(body) {
   const info = roomInfo.get(room);
-  const mine = !!info && info.owner === me;
-  $("delete-btn").hidden = !mine;
-  $("invite-btn").hidden = !(mine && info.kind === "private");
+  const label = roomTitle(room, roomKind, roomLabel);
+  $("info-title").textContent = roomKind === "dm" ? "Chat details" : "Room details";
+  const owner = info && info.owner;
+  const mine = !!owner && owner === me;
+
+  const parts = [hero(roomKind === "dm" ? roomLabel : (roomLabel || room),
+                      roomKind === "dm" ? "private chat"
+                        : memberCount(info)
+                          + (info && info.kind === "private" ? " · private" : ""))];
+
+  const actions = document.createElement("div");
+  actions.className = "info-actions";
+  if (mine && info.kind === "private") {
+    actions.append(action("Invite someone", () => invitePrompt()));
+  }
+  if (mine) {
+    actions.append(action("Delete this room", () => deleteRoom(room), true));
+  }
+  actions.append(action("Leave the chat", leave, true));
+  parts.push(actions);
+
+  if (roomKind !== "dm") {
+    const title = document.createElement("div");
+    title.className = "info-section-title";
+    title.textContent = lastUsers.length === 1 ? "1 member" : `${lastUsers.length} members`;
+    const list = document.createElement("ul");
+    list.replaceChildren(...lastUsers.map(([nick, uid]) => {
+      const li = document.createElement("li"), b = document.createElement("button");
+      b.type = "button";
+      const wrap = document.createElement("div"); wrap.className = "row-text";
+      const name = document.createElement("div"); name.className = "row-name";
+      name.textContent = nick + (nick === me ? " (you)" : "");
+      const id = document.createElement("div"); id.className = "sub"; id.textContent = uid || "";
+      wrap.append(name, id);
+      b.append(avatar(nick), wrap);
+      b.onclick = () => openInfo(nick === me ? "me" : "user", nick);
+      li.append(b); return li;
+    }));
+    parts.push(title, list);
+  }
+  body.replaceChildren(...parts);
+}
+
+function renderUserInfo(body, nick) {
+  $("info-title").textContent = "Profile";
+  const uid = (lastUsers.find(([n]) => n === nick) || [])[1] || "";
+  const parts = [hero(nick, uid)];
+  const actions = document.createElement("div");
+  actions.className = "info-actions";
+  actions.append(action(`Message ${nick}`, () => { send(`DM ${uid || nick}`); closeInfo(); }));
+  parts.push(actions);
+  body.replaceChildren(...parts);
+}
+
+function renderMyInfo(body) {
+  $("info-title").textContent = "You";
+  const parts = [hero(me, myUid)];
+
+  const actions = document.createElement("div");
+  actions.className = "info-actions";
+  actions.append(action("Change profile picture", () => $("pic-file").click()));
+  parts.push(actions);
+
+  const wpTitle = document.createElement("div");
+  wpTitle.className = "info-section-title";
+  wpTitle.textContent = "Chat wallpaper";
+  parts.push(wpTitle, wallpaperGrid());
+
+  const note = document.createElement("div");
+  note.className = "info-note";
+  note.textContent = "Your nickname and ID are assigned when you join and cannot be "
+    + "changed while you are connected; the ID is what invitations are addressed to.";
+  parts.push(note);
+
+  body.replaceChildren(...parts);
+}
+
+function invitePrompt() {
+  const here = roomInfo.get(room);
+  const who = prompt(`Invite someone to ${here ? here.shown : room}. `
+                     + `Type their nickname or their ID (like @4f2a91):`);
+  if (who && who.trim()) send(`INVITE ${who.trim()} ${room}`);
 }
 
 function renderRooms(rows) {
   roomInfo.clear();
   for (const [name, count, kind, owner, shown] of rows) {
-    roomInfo.set(name, { count, kind, shown: shown || "#" + name,
+    roomInfo.set(name, { count, kind, shown: shown || name,
                          owner: owner === "-" ? "" : owner });
   }
   const entry = (name, text, title, sub) => {
@@ -676,8 +902,10 @@ function renderSubtitle(count) {
 }
 
 function renderUsers(pairs) {
+  lastUsers = pairs;
   renderSubtitle(pairs.length);
   refreshPictures();
+  if (infoView.mode) renderInfo();
   $("users").replaceChildren(...pairs.map(([nick, uid]) => {
     const li = document.createElement("li"), b = document.createElement("button");
     b.type = "button";
@@ -689,7 +917,7 @@ function renderUsers(pairs) {
     wrap.append(name, id);
     b.append(avatar(nick), wrap);
     b.title = nick === me ? `Your ID is ${uid}` : `Open a private chat with ${nick} (${uid})`;
-    b.onclick = () => { if (nick !== me) send(`DM ${uid || nick}`); };
+    b.onclick = () => openInfo(nick === me ? "me" : "user", nick);
     li.append(b); return li;
   }));
   applyFilter();
@@ -761,8 +989,8 @@ function handleInput(text) {
     case "/delete":
       deleteRoom(arg || room);
       return;
-    case "/who": send("WHO"); return;
-    case "/rooms": send("ROOMS"); return;
+    case "/who": asked.who = true; send("WHO"); return;
+    case "/rooms": asked.rooms = true; send("ROOMS"); return;
     case "/quit": leave(); return;
     case "/help": addLine("notice", HELP); return;
     default: addLine("error", `Unknown command ${cmd}. ${HELP}`);
@@ -819,15 +1047,6 @@ $("new-room").onsubmit = (e) => {
   if (name) createRoom(name, $("new-room-kind").value);
   $("new-room-name").value = "";
 };
-
-$("invite-btn").onclick = () => {
-  const here = roomInfo.get(room);
-  const who = prompt(`Invite someone to ${here ? here.shown : room}. `
-                     + `Type their nickname or their ID (like @4f2a91):`);
-  if (who && who.trim()) send(`INVITE ${who.trim()} ${room}`);
-};
-
-$("delete-btn").onclick = () => deleteRoom(room);
 
 // ---- chat wallpaper --------------------------------------------------------
 // A viewer's own choice, kept in their browser. Nothing is sent anywhere and nobody
@@ -900,35 +1119,42 @@ function layers(paper, patternSize) {
   };
 }
 
+let chosenWallpaper = WALLPAPERS[0].name;
+
 function applyWallpaper(name) {
   const paper = WALLPAPERS.find((w) => w.name === name) || WALLPAPERS[0];
+  chosenWallpaper = paper.name;
   const l = layers(paper, 150);
   const root = document.documentElement.style;
   root.setProperty("--wp-pattern", l.pattern);
   root.setProperty("--wp-gradient", l.gradient);
-  for (const b of $("bg-picker").querySelectorAll("button")) {
+  // The tiles live in the panel, which may not be open; mark whichever exist.
+  for (const b of document.querySelectorAll(".wp-tile")) {
     b.classList.toggle("current", b.dataset.bg === paper.name);
   }
   return paper.name;
 }
 
-function buildPicker() {
-  const title = document.createElement("h3");
-  title.textContent = "Choose a Wallpaper";
-  const tiles = WALLPAPERS.map((paper) => {
+function wallpaperGrid() {
+  const grid = document.createElement("div");
+  grid.className = "wp-grid";
+  grid.replaceChildren(...WALLPAPERS.map((paper) => {
     const b = document.createElement("button");
     const l = layers(paper, 54);
-    b.type = "button"; b.title = paper.name; b.dataset.bg = paper.name;
+    b.type = "button"; b.className = "wp-tile"; b.title = paper.name;
+    b.dataset.bg = paper.name;
     b.style.backgroundImage = `${l.pattern}, ${paper.gradient}`;
+    if (paper.name === chosenWallpaper) b.classList.add("current");
     b.onclick = () => {
       applyWallpaper(paper.name);
       try { localStorage.setItem(BG_KEY, paper.name); } catch (e) { /* private mode */ }
-      $("bg-picker").classList.remove("on");
     };
     return b;
-  });
-  $("bg-picker").replaceChildren(title, ...tiles);
+  }));
+  return grid;
+}
 
+function restoreWallpaper() {
   let saved = null;
   try { saved = localStorage.getItem(BG_KEY); } catch (e) { /* ignore */ }
   // Older versions stored a colour; anything unrecognised falls back to the default.
@@ -974,15 +1200,24 @@ async function uploadPicture(file) {
   }
 }
 
-$("pic-btn").onclick = () => $("pic-file").click();
 $("pic-file").onchange = () => {
   const file = $("pic-file").files[0];
   if (file) uploadPicture(file);
   $("pic-file").value = "";       // so picking the same file again still fires
 };
 
-buildPicker();
-$("bg-btn").onclick = () => $("bg-picker").classList.toggle("on");
+restoreWallpaper();
+
+// ---- opening and closing the panel -----------------------------------------
+$("open-info").onclick = () => {
+  if (infoView.mode === "room") closeInfo(); else openInfo("room");
+};
+$("room-avatar").onclick = () => openInfo(roomKind === "dm" ? "room" : "room");
+$("settings-btn").onclick = () => {
+  if (infoView.mode === "me") closeInfo(); else openInfo("me");
+};
+$("info-close").onclick = closeInfo;
+$("info-back").onclick = () => openInfo("room");
 
 $("search").oninput = applyFilter;
 
